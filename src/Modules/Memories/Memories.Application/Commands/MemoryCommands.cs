@@ -1,0 +1,75 @@
+using AgentMemoryService.Shared.Core;
+using AgentMemoryService.Shared.Infrastructure;
+using AgentMemoryService.Memories.Core.Entities;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace AgentMemoryService.Memories.Application.Commands;
+
+// --- Add Memory ---
+public sealed record AddMemoryCommand(
+    Guid NamespaceId,
+    Guid RequesterId,
+    string Content,
+    MemoryType Type = MemoryType.Fact,
+    Guid? AgentId = null,
+    string? Source = null,
+    Dictionary<string, string>? Metadata = null,
+    DateTime? ExpiresAt = null)
+    : IRequest<Result<MemoryResponse>>;
+
+public sealed record MemoryResponse(
+    Guid Id, Guid NamespaceId, string Content, MemoryType Type,
+    Guid? AgentId, string? Source, Dictionary<string, string> Metadata,
+    DateTime CreatedAt, DateTime? ExpiresAt);
+
+public sealed class AddMemoryHandler : IRequestHandler<AddMemoryCommand, Result<MemoryResponse>>
+{
+    private readonly AppDbContext _db;
+
+    public AddMemoryHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<MemoryResponse>> Handle(AddMemoryCommand command, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
+        if (ns is null) return Result<MemoryResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+        if (!ns.CanWrite(command.RequesterId)) return Result<MemoryResponse>.Failure(Error.Forbidden("Memory.Forbidden", "Write access required"));
+
+        var memory = Memory.Create(
+            command.NamespaceId, command.RequesterId, command.Content,
+            command.Type, command.AgentId, command.Source, command.Metadata, command.ExpiresAt);
+
+        _db.Memories.Add(memory);
+        await _db.SaveChangesAsync(ct);
+
+        return Result<MemoryResponse>.Success(memory.ToResponse());
+    }
+}
+
+// --- Delete Memory ---
+public sealed record DeleteMemoryCommand(Guid MemoryId, Guid RequesterId) : IRequest<Result<bool>>;
+
+public sealed class DeleteMemoryHandler : IRequestHandler<DeleteMemoryCommand, Result<bool>>
+{
+    private readonly AppDbContext _db;
+
+    public DeleteMemoryHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<bool>> Handle(DeleteMemoryCommand command, CancellationToken ct)
+    {
+        var memory = await _db.Memories.FindAsync([command.MemoryId], ct);
+        if (memory is null) return Result<bool>.Failure(Error.NotFound("Memory.NotFound", "Memory not found"));
+        if (memory.CreatedByUserId != command.RequesterId)
+            return Result<bool>.Failure(Error.Forbidden("Memory.Forbidden", "Cannot delete another user's memory"));
+
+        memory.Deactivate();
+        await _db.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+public static class MemoryMappings
+{
+    public static MemoryResponse ToResponse(this Memory m) =>
+        new(m.Id, m.NamespaceId, m.Content, m.Type, m.AgentId, m.Source, m.Metadata, m.CreatedAt, m.ExpiresAt);
+}

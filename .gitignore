@@ -1,0 +1,25 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.userprefs
+
+## Local secrets
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+.env
+
+## Build output
+publish/
+dist/
+
+## Docker
+docker-compose.override.yml
+
+## OS
+.DS_Store
+Thumbs.db

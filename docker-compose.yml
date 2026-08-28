@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent-memory-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent_memory_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-memory-redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+    container_name: agent-memory-api
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=agent_memory_service;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      Jwt__Key: "REPLACE_WITH_A_LONG_SECURE_RANDOM_SECRET_KEY_AT_LEAST_32_CHARS"
+      Jwt__Issuer: "agent-memory-service"
+      Jwt__Audience: "agent-memory-service-clients"
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

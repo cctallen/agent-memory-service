@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="14.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.2" />
+    <PackageReference Include="StackExchange.Redis" Version="3.1.31" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.Core\AgentMemoryService.Shared.Core.csproj" />
+    <ProjectReference Include="..\..\Users\Users.Core\AgentMemoryService.Users.Core.csproj" />
+    <ProjectReference Include="..\..\Namespaces\Namespaces.Core\AgentMemoryService.Namespaces.Core.csproj" />
+    <ProjectReference Include="..\..\Memories\Memories.Core\AgentMemoryService.Memories.Core.csproj" />
+    <ProjectReference Include="..\..\Agents\Agents.Core\AgentMemoryService.Agents.Core.csproj" />
+  </ItemGroup>
+
+</Project>

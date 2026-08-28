@@ -1,0 +1,6 @@
+@AgentMemoryService.Api_HostAddress = http://localhost:5228
+
+GET {{AgentMemoryService.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
