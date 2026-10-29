@@ -11,14 +11,29 @@ public static class ResultExtensions
         if (result.IsSuccess)
             return onSuccess != null ? onSuccess(result.Value!) : Results.Ok(result.Value);
 
+        var problem = new ProblemDetails
+        {
+            Title = result.Error!.Code,
+            Detail = result.Error.Message,
+            Status = result.Error.Type switch
+            {
+                ErrorType.NotFound    => 404,
+                ErrorType.Validation  => 400,
+                ErrorType.Conflict    => 409,
+                ErrorType.Forbidden   => 403,
+                ErrorType.Unauthorized => 401,
+                _                     => 500,
+            }
+        };
+
         return result.Error!.Type switch
         {
-            ErrorType.NotFound => Results.NotFound(new ProblemDetails { Title = result.Error.Code, Detail = result.Error.Message, Status = 404 }),
-            ErrorType.Validation => Results.BadRequest(new ProblemDetails { Title = result.Error.Code, Detail = result.Error.Message, Status = 400 }),
-            ErrorType.Conflict => Results.Conflict(new ProblemDetails { Title = result.Error.Code, Detail = result.Error.Message, Status = 409 }),
-            ErrorType.Forbidden => Results.Forbid(),
-            ErrorType.Unauthorized => Results.Unauthorized(),
-            _ => Results.Problem(result.Error.Message, statusCode: 500, title: result.Error.Code)
+            ErrorType.NotFound     => Results.NotFound(problem),
+            ErrorType.Validation   => Results.BadRequest(problem),
+            ErrorType.Conflict     => Results.Conflict(problem),
+            ErrorType.Forbidden    => Results.Json(problem, statusCode: 403),
+            ErrorType.Unauthorized => Results.Json(problem, statusCode: 401),
+            _                      => Results.Problem(result.Error.Message, statusCode: 500, title: result.Error.Code)
         };
     }
 }

@@ -20,13 +20,13 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Database ---
+// ── Database ──────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("Postgres"),
         o => o.UseVector()));
 
-// --- Identity ---
+// ── Identity ──────────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
 {
     options.Password.RequireDigit = true;
@@ -34,68 +34,83 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireNonAlphanumeric = false;
     options.User.RequireUniqueEmail = true;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// --- Redis ---
+// ── Redis ─────────────────────────────────────────────────────
 builder.Services.AddStackExchangeRedisCache(options =>
     options.Configuration = builder.Configuration.GetConnectionString("Redis"));
 
-// --- JWT ---
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+// ── JWT ───────────────────────────────────────────────────────
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
-        };
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+        ClockSkew = TimeSpan.Zero // no grace period on token expiry
+    };
+});
 builder.Services.AddAuthorization();
 
-// --- MediatR ---
+// ── MediatR ───────────────────────────────────────────────────
+// Register all handler assemblies — Application layer has commands/queries,
+// Infrastructure layers have the actual handlers that depend on EF/Identity/etc.
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssemblies(
-        typeof(RegisterCommand).Assembly,
-        typeof(LoginCommand).Assembly,
-        typeof(LoginHandler).Assembly,
-        typeof(CreateNamespaceCommand).Assembly,
-        typeof(GetNamespacesQuery).Assembly,
-        typeof(AddMemoryCommand).Assembly,
-        typeof(GetMemoriesQuery).Assembly,
-        typeof(CreateAgentCommand).Assembly));
+        typeof(RegisterCommand).Assembly,       // Users.Application
+        typeof(LoginHandler).Assembly,          // Users.Infrastructure
+        typeof(CreateNamespaceCommand).Assembly,// Namespaces.Application
+        typeof(GetNamespacesQuery).Assembly,    // Namespaces.Application
+        typeof(AddMemoryCommand).Assembly,      // Memories.Application
+        typeof(GetMemoriesQuery).Assembly,      // Memories.Application
+        typeof(CreateAgentCommand).Assembly     // Agents.Application
+    ));
 
-// --- Validation ---
+// ── Validation ────────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssemblies([
-    typeof(RegisterCommand).Assembly,
+    typeof(RegisterCommand).Assembly,           // Users.Application validators
     typeof(CreateNamespaceCommand).Assembly,
     typeof(AddMemoryCommand).Assembly,
     typeof(CreateAgentCommand).Assembly
 ]);
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-// --- Services ---
+// ── Services ──────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
 
-// --- Swagger ---
+// ── Swagger ───────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Agent Memory Service", Version = "v1" });
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Agent Memory Service",
+        Version = "v1",
+        Description = "Cross-agent shared memory platform. One memory. Every agent. Your team."
+    });
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Enter: Bearer {token}",
+        Description = "Enter: Bearer {your_access_token}",
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
     });
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
@@ -115,19 +130,19 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- Middleware ---
+// ── Middleware ────────────────────────────────────────────────
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// --- Endpoints ---
+// ── Endpoints ─────────────────────────────────────────────────
 app.MapAuthEndpoints();
 app.MapNamespaceEndpoints();
 app.MapMemoryEndpoints();
 app.MapAgentEndpoints();
 
-// --- DB Migration on startup ---
+// ── DB Migration on startup ───────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

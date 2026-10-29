@@ -15,12 +15,21 @@ public static class AuthEndpoints
         {
             var result = await mediator.Send(command, ct);
             return result.ToHttpResult(user => Results.Created($"/api/users/{user.UserId}", user));
-        });
+        })
+        .WithSummary("Register a new user");
 
         group.MapPost("/login", async (LoginCommand command, ISender mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.ToHttpResult();
-        });
+        })
+        .WithSummary("Login and receive JWT tokens");
+
+        group.MapPost("/refresh", async (RefreshTokenCommand command, ISender mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.ToHttpResult();
+        })
+        .WithSummary("Refresh an access token using a refresh token");
     }
 }
