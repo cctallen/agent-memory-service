@@ -17,6 +17,7 @@ public sealed class Memory : AuditableEntity
     public float? RelevanceScore { get; private set; }
     public DateTime? ExpiresAt { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public MemoryVisibility Visibility { get; private set; } = MemoryVisibility.Public;
 
     private Memory() { }
 
@@ -28,7 +29,8 @@ public sealed class Memory : AuditableEntity
         Guid? agentId = null,
         string? source = null,
         Dictionary<string, string>? metadata = null,
-        DateTime? expiresAt = null) =>
+        DateTime? expiresAt = null,
+        MemoryVisibility visibility = MemoryVisibility.Public) =>
         new()
         {
             Id = Guid.NewGuid(),
@@ -39,12 +41,19 @@ public sealed class Memory : AuditableEntity
             AgentId = agentId,
             Source = source,
             Metadata = metadata ?? [],
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Visibility = visibility
         };
 
     public void SetEmbedding(float[] embedding) => Embedding = new Vector(embedding);
 
     public void Deactivate() => IsActive = false;
+}
+
+public enum MemoryVisibility
+{
+    Public = 0,
+    Private = 1
 }
 
 public enum MemoryType

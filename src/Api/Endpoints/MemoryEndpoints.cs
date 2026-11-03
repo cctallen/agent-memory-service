@@ -19,7 +19,8 @@ public static class MemoryEndpoints
             int page = 1, int pageSize = 20, Guid? agentId = null, CancellationToken ct = default) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await mediator.Send(new GetMemoriesQuery(namespaceId, userId, page, pageSize, AgentId: agentId), ct);
+            var isAgent = user.IsInRole("Agent");
+            var result = await mediator.Send(new GetMemoriesQuery(namespaceId, userId, page, pageSize, AgentId: agentId, IsAgent: isAgent), ct);
             return result.ToHttpResult();
         });
 
@@ -27,7 +28,8 @@ public static class MemoryEndpoints
             int topK = 10, CancellationToken ct = default) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await mediator.Send(new SearchMemoriesQuery(namespaceId, userId, q, topK), ct);
+            var isAgent = user.IsInRole("Agent");
+            var result = await mediator.Send(new SearchMemoriesQuery(namespaceId, userId, q, topK, IsAgent: isAgent), ct);
             return result.ToHttpResult();
         });
 

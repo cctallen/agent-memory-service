@@ -10,6 +10,7 @@ using AgentMemoryService.Users.Core.Entities;
 using AgentMemoryService.Users.Infrastructure.Handlers;
 using AgentMemoryService.Users.Infrastructure.Services;
 using AgentMemoryService.Api.Auth;
+using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Api.Endpoints;
 using Microsoft.AspNetCore.Authentication;
 using FluentValidation;
@@ -93,6 +94,10 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(CreateAgentCommand).Assembly
 ]);
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+// ── Cache ────────────────────────────────────────────────────
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IMemoryCacheService, HybridMemoryCacheService>();
 
 // ── Services ──────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();

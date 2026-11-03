@@ -68,6 +68,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.HasIndex(m => m.NamespaceId);
             b.HasIndex(m => m.AgentId);
             b.HasIndex(m => new { m.NamespaceId, m.IsActive });
+            b.HasIndex(m => new { m.NamespaceId, m.Visibility, m.IsActive });
+            b.Property(m => m.Visibility).HasConversion<int>();
             b.HasQueryFilter(m => m.IsActive);
         });
 

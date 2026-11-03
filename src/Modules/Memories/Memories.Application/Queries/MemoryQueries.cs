@@ -1,5 +1,7 @@
+using AgentMemoryService.Memories.Core.Entities;
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
+using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Memories.Application.Commands;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentMemoryService.Memories.Application.Queries;
 
 public sealed record GetMemoriesQuery(Guid NamespaceId, Guid RequesterId, int Page = 1, int PageSize = 20,
-    string? TypeFilter = null, Guid? AgentId = null)
+    string? TypeFilter = null, Guid? AgentId = null, bool IsAgent = false)
     : IRequest<Result<PagedResult<MemoryResponse>>>;
 
 public sealed record PagedResult<T>(List<T> Items, int Total, int Page, int PageSize);
@@ -15,8 +17,13 @@ public sealed record PagedResult<T>(List<T> Items, int Total, int Page, int Page
 public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Result<PagedResult<MemoryResponse>>>
 {
     private readonly AppDbContext _db;
+    private readonly IMemoryCacheService _cache;
 
-    public GetMemoriesHandler(AppDbContext db) => _db = db;
+    public GetMemoriesHandler(AppDbContext db, IMemoryCacheService cache)
+    {
+        _db = db;
+        _cache = cache;
+    }
 
     public async Task<Result<PagedResult<MemoryResponse>>> Handle(GetMemoriesQuery query, CancellationToken ct)
     {
@@ -25,24 +32,36 @@ public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Resul
         if (!ns.HasAccess(query.RequesterId))
             return Result<PagedResult<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
 
-        var q = _db.Memories.Where(m => m.NamespaceId == query.NamespaceId);
+        var cacheKey = $"memories:{query.NamespaceId}:page:{query.Page}:{query.PageSize}:agent:{query.AgentId}";
+        var cached = await _cache.GetOrCreateAsync(cacheKey, async (innerCt) =>
+        {
+            var q = _db.Memories.Where(m => m.NamespaceId == query.NamespaceId);
 
-        if (query.AgentId.HasValue)
-            q = q.Where(m => m.AgentId == query.AgentId);
+            if (query.AgentId.HasValue)
+                q = q.Where(m => m.AgentId == query.AgentId);
 
-        var total = await q.CountAsync(ct);
-        var items = await q
-            .OrderByDescending(m => m.CreatedAt)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToListAsync(ct);
+            // Agents see only Public memories OR their own Private ones
+            if (query.IsAgent)
+                q = q.Where(m => m.Visibility == MemoryVisibility.Public
+                    || m.AgentId == query.RequesterId
+                    || m.CreatedByUserId == query.RequesterId);
 
-        return Result<PagedResult<MemoryResponse>>.Success(
-            new PagedResult<MemoryResponse>(items.Select(m => m.ToResponse()).ToList(), total, query.Page, query.PageSize));
+            var total = await q.CountAsync(innerCt);
+            var items = await q
+                .OrderByDescending(m => m.CreatedAt)
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync(innerCt);
+
+            return new PagedResult<MemoryResponse>(items.Select(m => m.ToResponse()).ToList(), total, query.Page, query.PageSize);
+        }, expiry: TimeSpan.FromMinutes(1), ct: ct);
+
+        return Result<PagedResult<MemoryResponse>>.Success(cached!);
     }
 }
 
-public sealed record SearchMemoriesQuery(Guid NamespaceId, Guid RequesterId, string Query, int TopK = 10)
+public sealed record SearchMemoriesQuery(Guid NamespaceId, Guid RequesterId, string Query, int TopK = 10,
+    bool IsAgent = false)
     : IRequest<Result<List<MemoryResponse>>>;
 
 public sealed class SearchMemoriesHandler : IRequestHandler<SearchMemoriesQuery, Result<List<MemoryResponse>>>
@@ -59,8 +78,16 @@ public sealed class SearchMemoriesHandler : IRequestHandler<SearchMemoriesQuery,
             return Result<List<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
 
         // Text search fallback (vector search added when embedding service wired)
-        var results = await _db.Memories
-            .Where(m => m.NamespaceId == query.NamespaceId && EF.Functions.ILike(m.Content, $"%{query.Query}%"))
+        var q = _db.Memories
+            .Where(m => m.NamespaceId == query.NamespaceId && EF.Functions.ILike(m.Content, $"%{query.Query}%"));
+
+        // Agents see only Public memories OR their own Private ones
+        if (query.IsAgent)
+            q = q.Where(m => m.Visibility == MemoryVisibility.Public
+                || m.AgentId == query.RequesterId
+                || m.CreatedByUserId == query.RequesterId);
+
+        var results = await q
             .OrderByDescending(m => m.CreatedAt)
             .Take(query.TopK)
             .ToListAsync(ct);

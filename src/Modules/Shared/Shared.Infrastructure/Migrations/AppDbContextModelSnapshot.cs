@@ -114,6 +114,9 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Visibility")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AgentId");
@@ -121,6 +124,8 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.HasIndex("NamespaceId");
 
                     b.HasIndex("NamespaceId", "IsActive");
+
+                    b.HasIndex("NamespaceId", "Visibility", "IsActive");
 
                     b.ToTable("memories", (string)null);
                 });

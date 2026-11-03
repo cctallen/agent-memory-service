@@ -1,5 +1,6 @@
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
+using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Memories.Core.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -15,19 +16,25 @@ public sealed record AddMemoryCommand(
     Guid? AgentId = null,
     string? Source = null,
     Dictionary<string, string>? Metadata = null,
-    DateTime? ExpiresAt = null)
+    DateTime? ExpiresAt = null,
+    MemoryVisibility Visibility = MemoryVisibility.Public)
     : IRequest<Result<MemoryResponse>>;
 
 public sealed record MemoryResponse(
     Guid Id, Guid NamespaceId, string Content, MemoryType Type,
     Guid? AgentId, string? Source, Dictionary<string, string> Metadata,
-    DateTime CreatedAt, DateTime? ExpiresAt);
+    DateTime CreatedAt, DateTime? ExpiresAt, MemoryVisibility Visibility);
 
 public sealed class AddMemoryHandler : IRequestHandler<AddMemoryCommand, Result<MemoryResponse>>
 {
     private readonly AppDbContext _db;
+    private readonly IMemoryCacheService _cache;
 
-    public AddMemoryHandler(AppDbContext db) => _db = db;
+    public AddMemoryHandler(AppDbContext db, IMemoryCacheService cache)
+    {
+        _db = db;
+        _cache = cache;
+    }
 
     public async Task<Result<MemoryResponse>> Handle(AddMemoryCommand command, CancellationToken ct)
     {
@@ -37,10 +44,12 @@ public sealed class AddMemoryHandler : IRequestHandler<AddMemoryCommand, Result<
 
         var memory = Memory.Create(
             command.NamespaceId, command.RequesterId, command.Content,
-            command.Type, command.AgentId, command.Source, command.Metadata, command.ExpiresAt);
+            command.Type, command.AgentId, command.Source, command.Metadata, command.ExpiresAt, command.Visibility);
 
         _db.Memories.Add(memory);
         await _db.SaveChangesAsync(ct);
+
+        await _cache.RemoveByPrefixAsync($"memories:{command.NamespaceId}", ct);
 
         return Result<MemoryResponse>.Success(memory.ToResponse());
     }
@@ -52,8 +61,13 @@ public sealed record DeleteMemoryCommand(Guid MemoryId, Guid RequesterId) : IReq
 public sealed class DeleteMemoryHandler : IRequestHandler<DeleteMemoryCommand, Result<bool>>
 {
     private readonly AppDbContext _db;
+    private readonly IMemoryCacheService _cache;
 
-    public DeleteMemoryHandler(AppDbContext db) => _db = db;
+    public DeleteMemoryHandler(AppDbContext db, IMemoryCacheService cache)
+    {
+        _db = db;
+        _cache = cache;
+    }
 
     public async Task<Result<bool>> Handle(DeleteMemoryCommand command, CancellationToken ct)
     {
@@ -64,6 +78,9 @@ public sealed class DeleteMemoryHandler : IRequestHandler<DeleteMemoryCommand, R
 
         memory.Deactivate();
         await _db.SaveChangesAsync(ct);
+
+        await _cache.RemoveByPrefixAsync($"memories:{memory.NamespaceId}", ct);
+
         return Result<bool>.Success(true);
     }
 }
@@ -71,5 +88,5 @@ public sealed class DeleteMemoryHandler : IRequestHandler<DeleteMemoryCommand, R
 public static class MemoryMappings
 {
     public static MemoryResponse ToResponse(this Memory m) =>
-        new(m.Id, m.NamespaceId, m.Content, m.Type, m.AgentId, m.Source, m.Metadata, m.CreatedAt, m.ExpiresAt);
+        new(m.Id, m.NamespaceId, m.Content, m.Type, m.AgentId, m.Source, m.Metadata, m.CreatedAt, m.ExpiresAt, m.Visibility);
 }
