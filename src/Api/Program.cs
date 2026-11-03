@@ -9,7 +9,9 @@ using AgentMemoryService.Users.Application.Commands;
 using AgentMemoryService.Users.Core.Entities;
 using AgentMemoryService.Users.Infrastructure.Handlers;
 using AgentMemoryService.Users.Infrastructure.Services;
+using AgentMemoryService.Api.Auth;
 using AgentMemoryService.Api.Endpoints;
+using Microsoft.AspNetCore.Authentication;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -50,6 +52,7 @@ builder.Services.AddAuthentication(options =>
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
+.AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, _ => { })
 .AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -75,6 +78,7 @@ builder.Services.AddMediatR(cfg =>
         typeof(RegisterCommand).Assembly,       // Users.Application
         typeof(LoginHandler).Assembly,          // Users.Infrastructure
         typeof(CreateNamespaceCommand).Assembly,// Namespaces.Application
+        typeof(AddMemberCommand).Assembly,      // Namespaces.Application (members)
         typeof(GetNamespacesQuery).Assembly,    // Namespaces.Application
         typeof(AddMemoryCommand).Assembly,      // Memories.Application
         typeof(GetMemoriesQuery).Assembly,      // Memories.Application
@@ -112,6 +116,13 @@ builder.Services.AddSwaggerGen(c =>
         Scheme = "bearer",
         BearerFormat = "JWT"
     });
+    c.AddSecurityDefinition("ApiKey", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Agent API key. Enter your key directly (no Bearer prefix).",
+        Name = "X-Api-Key",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey
+    });
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         {
@@ -139,6 +150,7 @@ app.UseAuthorization();
 // ── Endpoints ─────────────────────────────────────────────────
 app.MapAuthEndpoints();
 app.MapNamespaceEndpoints();
+app.MapNamespaceMemberEndpoints();
 app.MapMemoryEndpoints();
 app.MapAgentEndpoints();
 

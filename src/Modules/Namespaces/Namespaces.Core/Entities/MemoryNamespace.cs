@@ -33,6 +33,22 @@ public sealed class MemoryNamespace : AuditableEntity
         _members.Add(new NamespaceMember(Id, userId, role));
     }
 
+    public bool RemoveMember(Guid userId)
+    {
+        var member = _members.FirstOrDefault(m => m.UserId == userId);
+        if (member is null) return false;
+        _members.Remove(member);
+        return true;
+    }
+
+    public bool UpdateMemberRole(Guid userId, NamespaceRole role)
+    {
+        var member = _members.FirstOrDefault(m => m.UserId == userId);
+        if (member is null) return false;
+        member.UpdateRole(role);
+        return true;
+    }
+
     public bool HasAccess(Guid userId) =>
         OwnerId == userId || _members.Any(m => m.UserId == userId);
 
@@ -56,6 +72,8 @@ public sealed class NamespaceMember
         Role = role;
         JoinedAt = DateTime.UtcNow;
     }
+
+    public void UpdateRole(NamespaceRole role) => Role = role;
 }
 
 public enum NamespaceRole { Reader = 1, Writer = 2, Admin = 3 }
