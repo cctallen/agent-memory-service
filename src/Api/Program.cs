@@ -69,7 +69,14 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero // no grace period on token expiry
     };
 });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder(
+        JwtBearerDefaults.AuthenticationScheme,
+        ApiKeyAuthenticationHandler.SchemeName)
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 // ── MediatR ───────────────────────────────────────────────────
 // Register all handler assemblies — Application layer has commands/queries,
