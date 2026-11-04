@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentMemoryService.Memories.Application.Queries;
 
 public sealed record GetMemoriesQuery(Guid NamespaceId, Guid RequesterId, int Page = 1, int PageSize = 20,
-    string? TypeFilter = null, Guid? AgentId = null, bool IsAgent = false)
+    string? TypeFilter = null, Guid? AgentId = null, bool IsAgent = false, DateTime? Since = null)
     : IRequest<Result<PagedResult<MemoryResponse>>>;
 
 public sealed record PagedResult<T>(List<T> Items, int Total, int Page, int PageSize);
@@ -35,10 +35,17 @@ public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Resul
         if (query.IsAgent && ns.Id != query.NamespaceId)
             return Result<PagedResult<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Agent not scoped to this namespace"));
 
-        var cacheKey = $"memories:{query.NamespaceId}:page:{query.Page}:{query.PageSize}:agent:{query.AgentId}";
-        var cached = await _cache.GetOrCreateAsync(cacheKey, async (innerCt) =>
+        // Skip cache for since-queries — they're cheap and must be fresh
+        var cacheKey = query.Since.HasValue
+            ? null
+            : $"memories:{query.NamespaceId}:page:{query.Page}:{query.PageSize}:agent:{query.AgentId}";
+
+        async Task<PagedResult<MemoryResponse>> fetchFromDb(CancellationToken innerCt)
         {
             var q = _db.Memories.Where(m => m.NamespaceId == query.NamespaceId);
+
+            if (query.Since.HasValue)
+                q = q.Where(m => m.CreatedAt > query.Since.Value);
 
             if (query.AgentId.HasValue)
                 q = q.Where(m => m.AgentId == query.AgentId);
@@ -57,7 +64,11 @@ public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Resul
                 .ToListAsync(innerCt);
 
             return new PagedResult<MemoryResponse>(items.Select(m => m.ToResponse()).ToList(), total, query.Page, query.PageSize);
-        }, expiry: TimeSpan.FromMinutes(1), ct: ct);
+        }
+
+        var cached = cacheKey is null
+            ? await fetchFromDb(ct)
+            : await _cache.GetOrCreateAsync(cacheKey, fetchFromDb, expiry: TimeSpan.FromMinutes(1), ct: ct);
 
         return Result<PagedResult<MemoryResponse>>.Success(cached!);
     }

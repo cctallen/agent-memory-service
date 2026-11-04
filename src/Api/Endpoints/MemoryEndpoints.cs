@@ -16,11 +16,11 @@ public static class MemoryEndpoints
             .RequireAuthorization();
 
         group.MapGet("/", async (Guid namespaceId, ISender mediator, ClaimsPrincipal user,
-            int page = 1, int pageSize = 20, Guid? agentId = null, CancellationToken ct = default) =>
+            int page = 1, int pageSize = 20, Guid? agentId = null, DateTime? since = null, CancellationToken ct = default) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
-            var result = await mediator.Send(new GetMemoriesQuery(namespaceId, userId, page, pageSize, AgentId: agentId, IsAgent: isAgent), ct);
+            var result = await mediator.Send(new GetMemoriesQuery(namespaceId, userId, page, pageSize, AgentId: agentId, IsAgent: isAgent, Since: since), ct);
             return result.ToHttpResult();
         });
 
