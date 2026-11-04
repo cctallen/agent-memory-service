@@ -29,8 +29,11 @@ public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Resul
     {
         var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
         if (ns is null) return Result<PagedResult<MemoryResponse>>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!ns.HasAccess(query.RequesterId))
+        // Agents are pre-scoped to their namespace via API key — skip member check
+        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
             return Result<PagedResult<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
+        if (query.IsAgent && ns.Id != query.NamespaceId)
+            return Result<PagedResult<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Agent not scoped to this namespace"));
 
         var cacheKey = $"memories:{query.NamespaceId}:page:{query.Page}:{query.PageSize}:agent:{query.AgentId}";
         var cached = await _cache.GetOrCreateAsync(cacheKey, async (innerCt) =>
@@ -74,7 +77,8 @@ public sealed class SearchMemoriesHandler : IRequestHandler<SearchMemoriesQuery,
     {
         var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
         if (ns is null) return Result<List<MemoryResponse>>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!ns.HasAccess(query.RequesterId))
+        // Agents are pre-scoped to their namespace via API key — skip member check
+        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
             return Result<List<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
 
         // Text search fallback (vector search added when embedding service wired)

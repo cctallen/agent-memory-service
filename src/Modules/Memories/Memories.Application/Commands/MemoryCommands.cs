@@ -17,7 +17,8 @@ public sealed record AddMemoryCommand(
     string? Source = null,
     Dictionary<string, string>? Metadata = null,
     DateTime? ExpiresAt = null,
-    MemoryVisibility Visibility = MemoryVisibility.Public)
+    MemoryVisibility Visibility = MemoryVisibility.Public,
+    bool IsAgent = false)
     : IRequest<Result<MemoryResponse>>;
 
 public sealed record MemoryResponse(
@@ -40,7 +41,9 @@ public sealed class AddMemoryHandler : IRequestHandler<AddMemoryCommand, Result<
     {
         var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
         if (ns is null) return Result<MemoryResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!ns.CanWrite(command.RequesterId)) return Result<MemoryResponse>.Failure(Error.Forbidden("Memory.Forbidden", "Write access required"));
+        // Agents are pre-scoped to their namespace via API key — skip member check
+        if (!command.IsAgent && !ns.CanWrite(command.RequesterId))
+            return Result<MemoryResponse>.Failure(Error.Forbidden("Memory.Forbidden", "Write access required"));
 
         var memory = Memory.Create(
             command.NamespaceId, command.RequesterId, command.Content,

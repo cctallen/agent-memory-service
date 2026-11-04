@@ -36,7 +36,8 @@ public static class MemoryEndpoints
         group.MapPost("/", async (Guid namespaceId, AddMemoryCommand req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var command = req with { NamespaceId = namespaceId, RequesterId = userId };
+            var isAgent = user.IsInRole("Agent");
+            var command = req with { NamespaceId = namespaceId, RequesterId = userId, IsAgent = isAgent };
             var result = await mediator.Send(command, ct);
             return result.ToHttpResult(m => Results.Created($"/api/namespaces/{namespaceId}/memories/{m.Id}", m));
         });
