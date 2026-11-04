@@ -1,5 +1,6 @@
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
+using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Namespaces.Core.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +16,13 @@ public sealed record NamespaceResponse(Guid Id, string Slug, string DisplayName,
 public sealed class CreateNamespaceHandler : IRequestHandler<CreateNamespaceCommand, Result<NamespaceResponse>>
 {
     private readonly AppDbContext _db;
+    private readonly IMemoryCacheService _cache;
 
-    public CreateNamespaceHandler(AppDbContext db) => _db = db;
+    public CreateNamespaceHandler(AppDbContext db, IMemoryCacheService cache)
+    {
+        _db = db;
+        _cache = cache;
+    }
 
     public async Task<Result<NamespaceResponse>> Handle(CreateNamespaceCommand command, CancellationToken ct)
     {
@@ -28,6 +34,8 @@ public sealed class CreateNamespaceHandler : IRequestHandler<CreateNamespaceComm
         _db.Namespaces.Add(ns);
         await _db.SaveChangesAsync(ct);
 
+        await _cache.RemoveByPrefixAsync($"namespaces:user:{command.OwnerId}", ct);
+
         return Result<NamespaceResponse>.Success(ns.ToResponse());
     }
 }
@@ -38,8 +46,13 @@ public sealed record DeleteNamespaceCommand(Guid NamespaceId, Guid RequesterId) 
 public sealed class DeleteNamespaceHandler : IRequestHandler<DeleteNamespaceCommand, Result<bool>>
 {
     private readonly AppDbContext _db;
+    private readonly IMemoryCacheService _cache;
 
-    public DeleteNamespaceHandler(AppDbContext db) => _db = db;
+    public DeleteNamespaceHandler(AppDbContext db, IMemoryCacheService cache)
+    {
+        _db = db;
+        _cache = cache;
+    }
 
     public async Task<Result<bool>> Handle(DeleteNamespaceCommand command, CancellationToken ct)
     {
@@ -49,6 +62,9 @@ public sealed class DeleteNamespaceHandler : IRequestHandler<DeleteNamespaceComm
 
         _db.Namespaces.Remove(ns);
         await _db.SaveChangesAsync(ct);
+
+        await _cache.RemoveByPrefixAsync($"namespaces:user:{command.RequesterId}", ct);
+
         return Result<bool>.Success(true);
     }
 }
