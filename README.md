@@ -48,4 +48,5 @@ Swagger UI: http://localhost:5000/swagger
 - **Agents** — API key-based agent identities scoped to namespaces
 
 
+# Update the database with any new migrations
 dotnet ef database update  --project ./Modules/Shared/Shared.Infrastructure/AgentMemoryService.Shared.Infrastructure.csproj --startup-project ./Api/AgentMemoryService.Api.csproj
