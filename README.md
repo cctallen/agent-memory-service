@@ -46,3 +46,6 @@ Swagger UI: http://localhost:5000/swagger
 - **Namespaces** — isolated memory spaces with member roles
 - **Memories** — store/retrieve/search memories with pgvector embeddings
 - **Agents** — API key-based agent identities scoped to namespaces
+
+
+dotnet ef database update  --project ./Modules/Shared/Shared.Infrastructure/AgentMemoryService.Shared.Infrastructure.csproj --startup-project ./Api/AgentMemoryService.Api.csproj
