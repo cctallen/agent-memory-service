@@ -50,6 +50,31 @@ public sealed class RotateAgentKeyHandler : IRequestHandler<RotateAgentKeyComman
     }
 }
 
+public sealed record DeleteAgentCommand(Guid AgentId, Guid RequesterId) : IRequest<Result<bool>>;
+
+public sealed class DeleteAgentHandler : IRequestHandler<DeleteAgentCommand, Result<bool>>
+{
+    private readonly AppDbContext _db;
+
+    public DeleteAgentHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<bool>> Handle(DeleteAgentCommand command, CancellationToken ct)
+    {
+        var agent = await _db.Agents
+            .FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
+        if (agent is null) return Result<bool>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
+
+        var ns = await _db.Namespaces.Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.Id == agent.NamespaceId, ct);
+        if (ns is null || !ns.CanWrite(command.RequesterId))
+            return Result<bool>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
+
+        _db.Agents.Remove(agent);
+        await _db.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
 public static class AgentMappings
 {
     public static AgentResponse ToResponse(this Agent a) =>

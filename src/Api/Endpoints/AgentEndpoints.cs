@@ -1,4 +1,5 @@
 using AgentMemoryService.Agents.Application.Commands;
+using AgentMemoryService.Agents.Application.Queries;
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
 using MediatR;
@@ -14,6 +15,13 @@ public static class AgentEndpoints
             .WithTags("Agents")
             .RequireAuthorization();
 
+        group.MapGet("/", async (Guid namespaceId, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await mediator.Send(new GetAgentsQuery(namespaceId, userId), ct);
+            return result.ToHttpResult();
+        });
+
         group.MapPost("/", async (Guid namespaceId, CreateAgentCommand req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -27,6 +35,13 @@ public static class AgentEndpoints
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var result = await mediator.Send(new RotateAgentKeyCommand(id, userId), ct);
             return result.ToHttpResult(key => Results.Ok(new { ApiKey = key }));
+        });
+
+        group.MapDelete("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await mediator.Send(new DeleteAgentCommand(id, userId), ct);
+            return result.ToHttpResult(_ => Results.NoContent());
         });
     }
 }
