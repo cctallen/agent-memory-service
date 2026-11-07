@@ -15,6 +15,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<NamespaceMember> NamespaceMembers => Set<NamespaceMember>();
     public DbSet<Memory> Memories => Set<Memory>();
     public DbSet<Agent> Agents => Set<Agent>();
+    public DbSet<AgentNamespaceMembership> AgentNamespaces => Set<AgentNamespaceMembership>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -81,8 +82,17 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.Property(a => a.Name).HasMaxLength(200).IsRequired();
             b.Property(a => a.ApiKey).HasMaxLength(100).IsRequired();
             b.HasIndex(a => a.ApiKey).IsUnique();
-            b.HasIndex(a => a.NamespaceId);
+            b.HasMany(a => a.Namespaces)
+                .WithOne()
+                .HasForeignKey(m => m.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
             b.HasQueryFilter(a => a.IsActive);
+        });
+
+        modelBuilder.Entity<AgentNamespaceMembership>(b =>
+        {
+            b.ToTable("agent_namespaces");
+            b.HasKey(m => new { m.AgentId, m.NamespaceId });
         });
     }
 

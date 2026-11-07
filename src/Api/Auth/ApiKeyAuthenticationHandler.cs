@@ -38,20 +38,24 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<Authenti
             return AuthenticateResult.NoResult();
 
         var agent = await _db.Agents
+            .Include(a => a.Namespaces)
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.ApiKey == apiKey, Context.RequestAborted);
 
         if (agent is null)
             return AuthenticateResult.Fail("Invalid API key");
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, agent.Id.ToString()),
-            new Claim(ClaimTypes.Name, agent.Name),
-            new Claim("agent_id", agent.Id.ToString()),
-            new Claim("namespace_id", agent.NamespaceId.ToString()),
-            new Claim(ClaimTypes.Role, "Agent"),
+            new(ClaimTypes.NameIdentifier, agent.Id.ToString()),
+            new(ClaimTypes.Name, agent.Name),
+            new("agent_id", agent.Id.ToString()),
+            new(ClaimTypes.Role, "Agent"),
         };
+
+        // Add a claim for each namespace the agent belongs to
+        foreach (var membership in agent.Namespaces)
+            claims.Add(new Claim("namespace_id", membership.NamespaceId.ToString()));
 
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);

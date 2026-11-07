@@ -6,10 +6,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgentMemoryService.Agents.Application.Commands;
 
-public sealed record CreateAgentCommand(Guid NamespaceId, string Name, string? Description, Guid RequesterId)
-    : IRequest<Result<AgentResponse>>;
+// ─────────────────────────────────────────────────────────────
+// Shared response
+// ─────────────────────────────────────────────────────────────
+public sealed record AgentResponse(Guid Id, string Name, string? Description, string ApiKey, DateTime CreatedAt, List<Guid> NamespaceIds);
 
-public sealed record AgentResponse(Guid Id, Guid NamespaceId, string Name, string? Description, string ApiKey, DateTime CreatedAt);
+public static class AgentMappings
+{
+    public static AgentResponse ToResponse(this Agent a) =>
+        new(a.Id, a.Name, a.Description, a.ApiKey, a.CreatedAt,
+            a.Namespaces.Select(n => n.NamespaceId).ToList());
+}
+
+// ─────────────────────────────────────────────────────────────
+// Create Agent (global — not tied to a namespace at creation)
+// ─────────────────────────────────────────────────────────────
+public sealed record CreateAgentCommand(string Name, string? Description, Guid RequesterId, Guid? NamespaceId = null)
+    : IRequest<Result<AgentResponse>>;
 
 public sealed class CreateAgentHandler : IRequestHandler<CreateAgentCommand, Result<AgentResponse>>
 {
@@ -19,11 +32,20 @@ public sealed class CreateAgentHandler : IRequestHandler<CreateAgentCommand, Res
 
     public async Task<Result<AgentResponse>> Handle(CreateAgentCommand command, CancellationToken ct)
     {
-        var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
-        if (ns is null) return Result<AgentResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!ns.CanWrite(command.RequesterId)) return Result<AgentResponse>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
+        // If a namespace is provided, verify write access
+        if (command.NamespaceId.HasValue)
+        {
+            var ns = await _db.Namespaces.Include(n => n.Members)
+                .FirstOrDefaultAsync(n => n.Id == command.NamespaceId.Value, ct);
+            if (ns is null) return Result<AgentResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+            if (!ns.CanWrite(command.RequesterId)) return Result<AgentResponse>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
+        }
 
-        var agent = Agent.Create(command.NamespaceId, command.Name, command.Description);
+        var agent = Agent.Create(command.Name, command.Description);
+
+        if (command.NamespaceId.HasValue)
+            agent.AddNamespace(command.NamespaceId.Value);
+
         _db.Agents.Add(agent);
         await _db.SaveChangesAsync(ct);
 
@@ -31,6 +53,107 @@ public sealed class CreateAgentHandler : IRequestHandler<CreateAgentCommand, Res
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Add Agent to Namespace
+// ─────────────────────────────────────────────────────────────
+public sealed record AddAgentToNamespaceCommand(Guid AgentId, Guid NamespaceId, Guid RequesterId)
+    : IRequest<Result<AgentResponse>>;
+
+public sealed class AddAgentToNamespaceHandler : IRequestHandler<AddAgentToNamespaceCommand, Result<AgentResponse>>
+{
+    private readonly AppDbContext _db;
+
+    public AddAgentToNamespaceHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<AgentResponse>> Handle(AddAgentToNamespaceCommand command, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
+        if (ns is null) return Result<AgentResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+        if (!ns.CanWrite(command.RequesterId)) return Result<AgentResponse>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
+
+        var agent = await _db.Agents.Include(a => a.Namespaces)
+            .FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
+        if (agent is null) return Result<AgentResponse>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
+
+        agent.AddNamespace(command.NamespaceId);
+        await _db.SaveChangesAsync(ct);
+
+        return Result<AgentResponse>.Success(agent.ToResponse());
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Remove Agent from Namespace
+// ─────────────────────────────────────────────────────────────
+public sealed record RemoveAgentFromNamespaceCommand(Guid AgentId, Guid NamespaceId, Guid RequesterId)
+    : IRequest<Result<bool>>;
+
+public sealed class RemoveAgentFromNamespaceHandler : IRequestHandler<RemoveAgentFromNamespaceCommand, Result<bool>>
+{
+    private readonly AppDbContext _db;
+
+    public RemoveAgentFromNamespaceHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<bool>> Handle(RemoveAgentFromNamespaceCommand command, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
+        if (ns is null) return Result<bool>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+        if (!ns.CanWrite(command.RequesterId)) return Result<bool>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
+
+        var agent = await _db.Agents.Include(a => a.Namespaces)
+            .FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
+        if (agent is null) return Result<bool>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
+
+        var removed = agent.RemoveNamespace(command.NamespaceId);
+        if (!removed) return Result<bool>.Failure(Error.NotFound("Agent.NotInNamespace", "Agent is not in this namespace"));
+
+        await _db.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Delete Agent entirely
+// ─────────────────────────────────────────────────────────────
+public sealed record DeleteAgentCommand(Guid AgentId, Guid RequesterId) : IRequest<Result<bool>>;
+
+public sealed class DeleteAgentHandler : IRequestHandler<DeleteAgentCommand, Result<bool>>
+{
+    private readonly AppDbContext _db;
+
+    public DeleteAgentHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<bool>> Handle(DeleteAgentCommand command, CancellationToken ct)
+    {
+        var agent = await _db.Agents.FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
+        if (agent is null) return Result<bool>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
+
+        // Must be owner/writer of at least one of the agent's namespaces
+        var namespaceIds = await _db.AgentNamespaces
+            .Where(m => m.AgentId == command.AgentId)
+            .Select(m => m.NamespaceId)
+            .ToListAsync(ct);
+
+        var hasAccess = await _db.Namespaces
+            .Include(n => n.Members)
+            .Where(n => namespaceIds.Contains(n.Id))
+            .AnyAsync(n => n.OwnerId == command.RequesterId ||
+                n.Members.Any(m => m.UserId == command.RequesterId && m.Role >= AgentMemoryService.Namespaces.Core.Entities.NamespaceRole.Writer), ct);
+
+        if (!hasAccess)
+            return Result<bool>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required in at least one agent namespace"));
+
+        _db.Agents.Remove(agent);
+        await _db.SaveChangesAsync(ct);
+        return Result<bool>.Success(true);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Rotate API Key
+// ─────────────────────────────────────────────────────────────
 public sealed record RotateAgentKeyCommand(Guid AgentId, Guid RequesterId) : IRequest<Result<string>>;
 
 public sealed class RotateAgentKeyHandler : IRequestHandler<RotateAgentKeyCommand, Result<string>>
@@ -48,35 +171,4 @@ public sealed class RotateAgentKeyHandler : IRequestHandler<RotateAgentKeyComman
         await _db.SaveChangesAsync(ct);
         return Result<string>.Success(agent.ApiKey);
     }
-}
-
-public sealed record DeleteAgentCommand(Guid AgentId, Guid RequesterId) : IRequest<Result<bool>>;
-
-public sealed class DeleteAgentHandler : IRequestHandler<DeleteAgentCommand, Result<bool>>
-{
-    private readonly AppDbContext _db;
-
-    public DeleteAgentHandler(AppDbContext db) => _db = db;
-
-    public async Task<Result<bool>> Handle(DeleteAgentCommand command, CancellationToken ct)
-    {
-        var agent = await _db.Agents
-            .FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
-        if (agent is null) return Result<bool>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
-
-        var ns = await _db.Namespaces.Include(n => n.Members)
-            .FirstOrDefaultAsync(n => n.Id == agent.NamespaceId, ct);
-        if (ns is null || !ns.CanWrite(command.RequesterId))
-            return Result<bool>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
-
-        _db.Agents.Remove(agent);
-        await _db.SaveChangesAsync(ct);
-        return Result<bool>.Success(true);
-    }
-}
-
-public static class AgentMappings
-{
-    public static AgentResponse ToResponse(this Agent a) =>
-        new(a.Id, a.NamespaceId, a.Name, a.Description, a.ApiKey, a.CreatedAt);
 }

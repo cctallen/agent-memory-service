@@ -49,9 +49,6 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<Guid>("NamespaceId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -60,9 +57,23 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.HasIndex("ApiKey")
                         .IsUnique();
 
-                    b.HasIndex("NamespaceId");
-
                     b.ToTable("agents", (string)null);
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Agents.Core.Entities.AgentNamespaceMembership", b =>
+                {
+                    b.Property<Guid>("AgentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NamespaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("AgentId", "NamespaceId");
+
+                    b.ToTable("agent_namespaces", (string)null);
                 });
 
             modelBuilder.Entity("AgentMemoryService.Memories.Core.Entities.Memory", b =>
@@ -409,6 +420,15 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("AgentMemoryService.Agents.Core.Entities.AgentNamespaceMembership", b =>
+                {
+                    b.HasOne("AgentMemoryService.Agents.Core.Entities.Agent", null)
+                        .WithMany("Namespaces")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.NamespaceMember", b =>
                 {
                     b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
@@ -467,6 +487,11 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Agents.Core.Entities.Agent", b =>
+                {
+                    b.Navigation("Namespaces");
                 });
 
             modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", b =>
