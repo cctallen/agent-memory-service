@@ -1,6 +1,7 @@
 using AgentMemoryService.Agents.Core.Entities;
 using AgentMemoryService.Memories.Core.Entities;
 using AgentMemoryService.Namespaces.Core.Entities;
+using AgentMemoryService.Secrets.Core.Entities;
 using AgentMemoryService.Users.Core.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<Memory> Memories => Set<Memory>();
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<AgentNamespaceMembership> AgentNamespaces => Set<AgentNamespaceMembership>();
+    public DbSet<Secret> Secrets => Set<Secret>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -93,6 +95,20 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         {
             b.ToTable("agent_namespaces");
             b.HasKey(m => new { m.AgentId, m.NamespaceId });
+        });
+
+        // Secrets
+        modelBuilder.Entity<Secret>(b =>
+        {
+            b.ToTable("secrets");
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            b.Property(s => s.Description).HasMaxLength(500);
+            b.Property(s => s.EncryptedValue).IsRequired();
+            b.Property(s => s.Iv).HasMaxLength(100).IsRequired();
+            b.HasIndex(s => new { s.NamespaceId, s.Name }).IsUnique();
+            b.HasIndex(s => s.NamespaceId);
+            b.HasQueryFilter(s => s.IsActive);
         });
     }
 

@@ -3,6 +3,8 @@ using AgentMemoryService.Memories.Application.Commands;
 using AgentMemoryService.Memories.Application.Queries;
 using AgentMemoryService.Namespaces.Application.Commands;
 using AgentMemoryService.Namespaces.Application.Queries;
+using AgentMemoryService.Secrets.Application.Commands;
+using AgentMemoryService.Secrets.Application.Queries;
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
 using AgentMemoryService.Users.Application.Commands;
@@ -90,15 +92,21 @@ builder.Services.AddMediatR(cfg =>
         typeof(GetNamespacesQuery).Assembly,    // Namespaces.Application
         typeof(AddMemoryCommand).Assembly,      // Memories.Application
         typeof(GetMemoriesQuery).Assembly,      // Memories.Application
-        typeof(CreateAgentCommand).Assembly     // Agents.Application
+        typeof(CreateAgentCommand).Assembly,    // Agents.Application
+        typeof(CreateSecretCommand).Assembly,   // Secrets.Application
+        typeof(GetSecretsQuery).Assembly        // Secrets.Application queries
     ));
+
+// ── Secrets encryption ────────────────────────────────────────
+builder.Services.AddSingleton<SecretEncryptionService>();
 
 // ── Validation ────────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssemblies([
     typeof(RegisterCommand).Assembly,           // Users.Application validators
     typeof(CreateNamespaceCommand).Assembly,
     typeof(AddMemoryCommand).Assembly,
-    typeof(CreateAgentCommand).Assembly
+    typeof(CreateAgentCommand).Assembly,
+    typeof(CreateSecretCommand).Assembly        // Secrets.Application validators
 ]);
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
@@ -165,6 +173,7 @@ app.MapNamespaceEndpoints();
 app.MapNamespaceMemberEndpoints();
 app.MapMemoryEndpoints();
 app.MapAgentEndpoints();
+app.MapSecretEndpoints();
 
 // ── DB Migration on startup ───────────────────────────────────
 using (var scope = app.Services.CreateScope())

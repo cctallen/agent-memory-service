@@ -200,6 +200,55 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.ToTable("namespace_members", (string)null);
                 });
 
+            modelBuilder.Entity("AgentMemoryService.Secrets.Core.Entities.Secret", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("EncryptedValue")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Iv")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("NamespaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NamespaceId");
+
+                    b.HasIndex("NamespaceId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("secrets", (string)null);
+                });
+
             modelBuilder.Entity("AgentMemoryService.Users.Core.Entities.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")

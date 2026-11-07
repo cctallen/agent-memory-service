@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\Namespaces\Namespaces.Core\AgentMemoryService.Namespaces.Core.csproj" />
     <ProjectReference Include="..\..\Memories\Memories.Core\AgentMemoryService.Memories.Core.csproj" />
     <ProjectReference Include="..\..\Agents\Agents.Core\AgentMemoryService.Agents.Core.csproj" />
+    <ProjectReference Include="..\..\Secrets\Secrets.Core\AgentMemoryService.Secrets.Core.csproj" />
   </ItemGroup>
 
 </Project>
