@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace AgentMemoryService.Mcp;
+namespace AgentMemoryService.Mcp.Core;
 
 /// <summary>
 /// Typed HTTP client for the MindVault API.

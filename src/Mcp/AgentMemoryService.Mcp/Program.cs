@@ -1,5 +1,5 @@
-using AgentMemoryService.Mcp;
-using AgentMemoryService.Mcp.Tools;
+using AgentMemoryService.Mcp.Core;
+using AgentMemoryService.Mcp.Core.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -39,6 +39,6 @@ builder.Services.AddSingleton(new MindVaultConfig(namespaceId));
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithToolsFromAssembly();
+    .WithToolsFromAssembly(typeof(MemoryTools).Assembly); // tools live in Mcp.Core
 
 await builder.Build().RunAsync();

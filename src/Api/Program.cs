@@ -14,6 +14,7 @@ using AgentMemoryService.Users.Infrastructure.Services;
 using AgentMemoryService.Api.Auth;
 using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Api.Endpoints;
+using AgentMemoryService.Mcp.Core;
 using Microsoft.AspNetCore.Authentication;
 using FluentValidation;
 using MediatR;
@@ -21,6 +22,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using ModelContextProtocol.Server;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -114,6 +116,35 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBeh
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IMemoryCacheService, HybridMemoryCacheService>();
 
+// ── MCP (HTTP transport) ─────────────────────────────────────
+// The MCP endpoint lives at /mcp and authenticates via X-Api-Key.
+// MindVaultClient calls back into this same server on localhost,
+// forwarding the caller's API key via ForwardApiKeyHandler.
+{
+    var selfUrl = builder.Configuration["Mcp:SelfUrl"] ?? "http://localhost:5228";
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddTransient<AgentMemoryService.Api.ForwardApiKeyHandler>();
+    builder.Services.AddHttpClient<MindVaultClient>(client =>
+    {
+        client.BaseAddress = new Uri(selfUrl);
+        client.DefaultRequestHeaders.Add("Accept", "application/json");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }).AddHttpMessageHandler<AgentMemoryService.Api.ForwardApiKeyHandler>();
+    // MindVaultConfig is request-scoped — namespace ID comes from the X-Mcp-Namespace header
+    builder.Services.AddScoped<MindVaultConfig>(sp =>
+    {
+        var http = sp.GetRequiredService<IHttpContextAccessor>();
+        var ns = http.HttpContext?.Request.Headers["X-Mcp-Namespace"].FirstOrDefault()
+            ?? builder.Configuration["Mcp:DefaultNamespaceId"]
+            ?? string.Empty;
+        return new MindVaultConfig(ns);
+    });
+    builder.Services
+        .AddMcpServer()
+        .WithHttpTransport()
+        .WithToolsFromAssembly(typeof(MindVaultClient).Assembly);
+}
+
 // ── Services ──────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
 
@@ -174,6 +205,10 @@ app.MapNamespaceMemberEndpoints();
 app.MapMemoryEndpoints();
 app.MapAgentEndpoints();
 app.MapSecretEndpoints();
+
+// ── MCP endpoint ──────────────────────────────────────────────
+// Secured by the existing ApiKey middleware — pass X-Api-Key + X-Mcp-Namespace
+app.MapMcp("/mcp").RequireAuthorization();
 
 // ── DB Migration on startup ───────────────────────────────────
 using (var scope = app.Services.CreateScope())

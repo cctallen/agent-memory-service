@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 
-namespace AgentMemoryService.Mcp.Tools;
+namespace AgentMemoryService.Mcp.Core.Tools;
 
 [McpServerToolType]
 public sealed class SecretTools

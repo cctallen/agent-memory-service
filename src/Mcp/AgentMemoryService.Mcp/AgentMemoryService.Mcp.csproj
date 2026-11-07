@@ -14,9 +14,7 @@
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" Version="2.4.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
-    <!-- ReadFromJsonAsync / PostAsJsonAsync -->
-    <PackageReference Include="System.Net.Http.Json" Version="8.0.1" />
+    <ProjectReference Include="..\AgentMemoryService.Mcp.Core\AgentMemoryService.Mcp.Core.csproj" />
   </ItemGroup>
 
 </Project>
