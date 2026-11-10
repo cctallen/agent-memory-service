@@ -8,6 +8,31 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgentMemoryService.Memories.Application.Queries;
 
+public sealed record GetMemoryByIdQuery(Guid NamespaceId, Guid MemoryId, Guid RequesterId, bool IsAgent = false)
+    : IRequest<Result<MemoryResponse>>;
+
+public sealed class GetMemoryByIdHandler : IRequestHandler<GetMemoryByIdQuery, Result<MemoryResponse>>
+{
+    private readonly AppDbContext _db;
+
+    public GetMemoryByIdHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<MemoryResponse>> Handle(GetMemoryByIdQuery query, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
+        if (ns is null) return Result<MemoryResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
+            return Result<MemoryResponse>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
+
+        var memory = await _db.Memories
+            .FirstOrDefaultAsync(m => m.Id == query.MemoryId && m.NamespaceId == query.NamespaceId, ct);
+        if (memory is null)
+            return Result<MemoryResponse>.Failure(Error.NotFound("Memory.NotFound", "Memory not found"));
+
+        return Result<MemoryResponse>.Success(memory.ToResponse());
+    }
+}
+
 public sealed record GetMemoriesQuery(Guid NamespaceId, Guid RequesterId, int Page = 1, int PageSize = 20,
     string? TypeFilter = null, Guid? AgentId = null, bool IsAgent = false, DateTime? Since = null)
     : IRequest<Result<PagedResult<MemoryResponse>>>;

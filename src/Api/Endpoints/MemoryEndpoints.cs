@@ -24,6 +24,14 @@ public static class MemoryEndpoints
             return result.ToHttpResult();
         });
 
+        group.MapGet("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var userId = user.IsInRole("Agent") ? Guid.Empty : Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isAgent = user.IsInRole("Agent");
+            var result = await mediator.Send(new GetMemoryByIdQuery(namespaceId, id, userId, IsAgent: isAgent), ct);
+            return result.ToHttpResult();
+        });
+
         group.MapGet("/search", async (Guid namespaceId, string q, ISender mediator, ClaimsPrincipal user,
             int topK = 10, CancellationToken ct = default) =>
         {
