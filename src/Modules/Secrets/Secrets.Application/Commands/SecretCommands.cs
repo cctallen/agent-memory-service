@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using AgentMemoryService.Secrets.Core.Entities;
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -198,8 +199,47 @@ public sealed class DeleteSecretHandler : IRequestHandler<DeleteSecretCommand, R
 }
 
 // ─────────────────────────────────────────────────────────────
-// Reveal Secret (decrypt + return plaintext)
+// Reveal Secret by Name
 // ─────────────────────────────────────────────────────────────
+public sealed record RevealSecretByNameCommand(string Name, Guid NamespaceId, Guid RequesterId, bool IsAgent = false)
+    : IRequest<Result<SecretRevealResponse>>;
+
+public sealed class RevealSecretByNameCommandValidator : AbstractValidator<RevealSecretByNameCommand>
+{
+    public RevealSecretByNameCommandValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+    }
+}
+
+public sealed class RevealSecretByNameHandler : IRequestHandler<RevealSecretByNameCommand, Result<SecretRevealResponse>>
+{
+    private readonly AppDbContext _db;
+    private readonly SecretEncryptionService _enc;
+
+    public RevealSecretByNameHandler(AppDbContext db, SecretEncryptionService enc)
+    {
+        _db = db;
+        _enc = enc;
+    }
+
+    public async Task<Result<SecretRevealResponse>> Handle(RevealSecretByNameCommand command, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
+        if (ns is null) return Result<SecretRevealResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+
+        if (!command.IsAgent && !ns.HasAccess(command.RequesterId))
+            return Result<SecretRevealResponse>.Failure(Error.Forbidden("Secret.Forbidden", "Read access required"));
+
+        var secret = await _db.Secrets
+            .FirstOrDefaultAsync(s => s.NamespaceId == command.NamespaceId && s.Name == command.Name, ct);
+        if (secret is null) return Result<SecretRevealResponse>.Failure(Error.NotFound("Secret.NotFound", $"No secret named '{command.Name}' found in this namespace"));
+
+        var plaintext = _enc.Decrypt(secret.EncryptedValue, secret.Iv);
+        return Result<SecretRevealResponse>.Success(new SecretRevealResponse(secret.Id, secret.Name, secret.Description, plaintext));
+    }
+}
 public sealed record RevealSecretCommand(Guid SecretId, Guid NamespaceId, Guid RequesterId, bool IsAgent = false)
     : IRequest<Result<SecretRevealResponse>>;
 

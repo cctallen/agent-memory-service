@@ -6,6 +6,9 @@ using System.Security.Claims;
 
 namespace AgentMemoryService.Api.Endpoints;
 
+/// <summary>Request body for reveal-by-name.</summary>
+public sealed record RevealByNameRequest(string Name);
+
 public static class SecretEndpoints
 {
     public static void MapSecretEndpoints(this IEndpointRouteBuilder app)
@@ -40,6 +43,15 @@ public static class SecretEndpoints
             var isAgent = user.IsInRole("Agent");
             var command = req with { SecretId = id, NamespaceId = namespaceId, RequesterId = userId, IsAgent = isAgent };
             var result = await mediator.Send(command, ct);
+            return result.ToHttpResult();
+        });
+
+        // Reveal a secret by name — agent-friendly lookup without needing the UUID
+        group.MapPost("/reveal-by-name", async (Guid namespaceId, RevealByNameRequest req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var userId = user.IsInRole("Agent") ? Guid.Empty : Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isAgent = user.IsInRole("Agent");
+            var result = await mediator.Send(new RevealSecretByNameCommand(req.Name, namespaceId, userId, IsAgent: isAgent), ct);
             return result.ToHttpResult();
         });
 
