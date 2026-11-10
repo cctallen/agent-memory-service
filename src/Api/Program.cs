@@ -204,6 +204,7 @@ app.MapNamespaceEndpoints();
 app.MapNamespaceMemberEndpoints();
 app.MapMemoryEndpoints();
 app.MapAgentEndpoints();
+app.MapUserEndpoints();
 app.MapSecretEndpoints();
 
 // ── MCP endpoint ──────────────────────────────────────────────
