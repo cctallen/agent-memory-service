@@ -74,3 +74,34 @@ public static class NamespaceMappings
     public static NamespaceResponse ToResponse(this MemoryNamespace ns) =>
         new(ns.Id, ns.Slug, ns.DisplayName, ns.Description, ns.IsPublic, ns.Members.Count, ns.CreatedAt);
 }
+
+public sealed record UpdateNamespaceCommand(Guid Id, string DisplayName, string? Description, bool IsPublic, Guid RequesterId)
+    : IRequest<Result<NamespaceResponse>>;
+
+public sealed class UpdateNamespaceHandler : IRequestHandler<UpdateNamespaceCommand, Result<NamespaceResponse>>
+{
+    private readonly AppDbContext _db;
+    private readonly IMemoryCacheService _cache;
+
+    public UpdateNamespaceHandler(AppDbContext db, IMemoryCacheService cache)
+    {
+        _db = db;
+        _cache = cache;
+    }
+
+    public async Task<Result<NamespaceResponse>> Handle(UpdateNamespaceCommand command, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.Id == command.Id, ct);
+        if (ns is null)
+            return Result<NamespaceResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+        if (ns.OwnerId != command.RequesterId)
+            return Result<NamespaceResponse>.Failure(Error.Forbidden("Namespace.Forbidden", "Only the owner can update namespace properties"));
+
+        ns.Update(command.DisplayName, command.Description, command.IsPublic);
+        await _db.SaveChangesAsync(ct);
+        await _cache.RemoveAsync($"namespaces:{command.RequesterId}", ct);
+
+        return Result<NamespaceResponse>.Success(ns.ToResponse());
+    }
+}

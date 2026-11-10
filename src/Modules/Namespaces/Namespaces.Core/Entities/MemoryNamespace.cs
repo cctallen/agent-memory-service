@@ -27,6 +27,13 @@ public sealed class MemoryNamespace : AuditableEntity
             IsPublic = isPublic
         };
 
+    public void Update(string displayName, string? description, bool isPublic)
+    {
+        DisplayName = displayName;
+        Description = description;
+        IsPublic = isPublic;
+    }
+
     public void AddMember(Guid userId, NamespaceRole role)
     {
         if (_members.Any(m => m.UserId == userId)) return;

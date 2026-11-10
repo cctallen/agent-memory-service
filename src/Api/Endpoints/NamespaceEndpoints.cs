@@ -35,6 +35,14 @@ public static class NamespaceEndpoints
             return result.ToHttpResult(ns => Results.Created($"/api/namespaces/{ns.Slug}", ns));
         });
 
+        group.MapPut("/{id:guid}", async (Guid id, UpdateNamespaceCommand req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var command = req with { Id = id, RequesterId = userId };
+            var result = await mediator.Send(command, ct);
+            return result.ToHttpResult();
+        });
+
         group.MapDelete("/{id:guid}", async (Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
