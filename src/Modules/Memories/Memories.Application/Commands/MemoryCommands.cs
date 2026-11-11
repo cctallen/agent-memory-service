@@ -2,6 +2,7 @@ using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
 using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Memories.Core.Entities;
+using AgentMemoryService.Namespaces.Core.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -59,7 +60,7 @@ public sealed class AddMemoryHandler : IRequestHandler<AddMemoryCommand, Result<
 }
 
 // --- Delete Memory ---
-public sealed record DeleteMemoryCommand(Guid MemoryId, Guid RequesterId) : IRequest<Result<bool>>;
+public sealed record DeleteMemoryCommand(Guid MemoryId, Guid RequesterId, bool IsAgent = false) : IRequest<Result<bool>>;
 
 public sealed class DeleteMemoryHandler : IRequestHandler<DeleteMemoryCommand, Result<bool>>
 {
@@ -76,8 +77,22 @@ public sealed class DeleteMemoryHandler : IRequestHandler<DeleteMemoryCommand, R
     {
         var memory = await _db.Memories.FindAsync([command.MemoryId], ct);
         if (memory is null) return Result<bool>.Failure(Error.NotFound("Memory.NotFound", "Memory not found"));
-        if (memory.CreatedByUserId != command.RequesterId)
-            return Result<bool>.Failure(Error.Forbidden("Memory.Forbidden", "Cannot delete another user's memory"));
+
+        // Allow deletion if: (1) requester created it, (2) record has no owner (orphaned),
+        // (3) requester is namespace owner/admin, or (4) request is from an agent in this namespace
+        var isOwner = memory.CreatedByUserId == command.RequesterId;
+        var isOrphaned = memory.CreatedByUserId == null;
+
+        if (!isOwner && !isOrphaned && !command.IsAgent)
+        {
+            var ns = await _db.Namespaces.Include(n => n.Members)
+                .FirstOrDefaultAsync(n => n.Id == memory.NamespaceId, ct);
+            var isNamespaceAdmin = ns is not null &&
+                (ns.OwnerId == command.RequesterId ||
+                 ns.Members.Any(m => m.UserId == command.RequesterId && m.Role >= NamespaceRole.Admin));
+            if (!isNamespaceAdmin)
+                return Result<bool>.Failure(Error.Forbidden("Memory.Forbidden", "Cannot delete another user's memory"));
+        }
 
         memory.Deactivate();
         await _db.SaveChangesAsync(ct);
