@@ -53,7 +53,8 @@ public static class MemoryEndpoints
         group.MapDelete("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await mediator.Send(new DeleteMemoryCommand(id, userId), ct);
+            var isAgent = user.IsInRole("Agent");
+            var result = await mediator.Send(new DeleteMemoryCommand(id, userId, isAgent), ct);
             return result.ToHttpResult(_ => Results.NoContent());
         });
     }
