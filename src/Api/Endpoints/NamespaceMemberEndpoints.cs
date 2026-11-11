@@ -1,7 +1,9 @@
 using AgentMemoryService.Namespaces.Application.Commands;
 using AgentMemoryService.Namespaces.Core.Entities;
 using AgentMemoryService.Shared.Infrastructure;
+using AgentMemoryService.Users.Core.Entities;
 using MediatR;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -17,7 +19,8 @@ public static class NamespaceMemberEndpoints
 
         // GET /api/namespaces/{namespaceId}/members
         group.MapGet("/", async (Guid namespaceId, ISender mediator,
-            AgentMemoryService.Shared.Infrastructure.AppDbContext db,
+            AppDbContext db,
+            UserManager<ApplicationUser> userManager,
             ClaimsPrincipal user, CancellationToken ct) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -29,12 +32,26 @@ public static class NamespaceMemberEndpoints
             if (ns is null) return Results.NotFound();
             if (!ns.HasAccess(userId)) return Results.Forbid();
 
-            var members = ns.Members.Select(m => new
+            // Batch-load user details for all members
+            var memberUserIds = ns.Members.Select(m => m.UserId).ToList();
+            var users = await userManager.Users
+                .AsNoTracking()
+                .Where(u => memberUserIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Email, u.FirstName, u.LastName })
+                .ToDictionaryAsync(u => u.Id, ct);
+
+            var members = ns.Members.Select(m =>
             {
-                m.UserId,
-                m.Role,
-                RoleName = m.Role.ToString(),
-                m.JoinedAt
+                var u = users.GetValueOrDefault(m.UserId);
+                return new
+                {
+                    m.UserId,
+                    Email = u?.Email ?? "",
+                    FullName = ((u?.FirstName ?? "") + " " + (u?.LastName ?? "")).Trim(),
+                    m.Role,
+                    RoleName = m.Role.ToString(),
+                    m.JoinedAt
+                };
             });
 
             return Results.Ok(members);
