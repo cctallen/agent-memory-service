@@ -57,7 +57,7 @@ public sealed class MemoryNamespace : AuditableEntity
     }
 
     public bool HasAccess(Guid userId) =>
-        OwnerId == userId || _members.Any(m => m.UserId == userId);
+        IsPublic || OwnerId == userId || _members.Any(m => m.UserId == userId);
 
     public bool CanWrite(Guid userId) =>
         OwnerId == userId || _members.Any(m => m.UserId == userId && m.Role >= NamespaceRole.Writer);
