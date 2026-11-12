@@ -81,6 +81,11 @@ builder.Services.AddAuthorization(options =>
         ApiKeyAuthenticationHandler.SchemeName)
         .RequireAuthenticatedUser()
         .Build();
+
+    options.AddPolicy("Admin", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireRole("Admin")
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme));
 });
 
 // ── MediatR ───────────────────────────────────────────────────

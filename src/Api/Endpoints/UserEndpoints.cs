@@ -15,7 +15,7 @@ public static class UserEndpoints
     {
         var group = app.MapGroup("/api/users")
             .WithTags("Users")
-            .RequireAuthorization();
+            .RequireAuthorization("Admin");
 
         // GET /api/users — list all registered users
         group.MapGet("/", async (UserManager<ApplicationUser> userManager, CancellationToken ct) =>
