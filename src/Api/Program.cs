@@ -11,6 +11,7 @@ using AgentMemoryService.Users.Application.Commands;
 using AgentMemoryService.Users.Core.Entities;
 using AgentMemoryService.Users.Infrastructure.Handlers;
 using AgentMemoryService.Users.Infrastructure.Services;
+using AgentMemoryService.Api;
 using AgentMemoryService.Api.Auth;
 using AgentMemoryService.Shared.Infrastructure.Caching;
 using AgentMemoryService.Api.Endpoints;
@@ -216,6 +217,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+    await RoleSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.Run();
