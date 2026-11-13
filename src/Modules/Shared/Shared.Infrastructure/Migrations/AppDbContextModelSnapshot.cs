@@ -141,6 +141,54 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.ToTable("memories", (string)null);
                 });
 
+            modelBuilder.Entity("AgentMemoryService.Memories.Core.Entities.MemoryAccessLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AccessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("AgentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AgentName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("MemoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NamespaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Operation")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Query")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("RecordCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessedAt");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("MemoryId");
+
+                    b.HasIndex("NamespaceId");
+
+                    b.HasIndex("NamespaceId", "AccessedAt");
+
+                    b.ToTable("memory_access_logs", (string)null);
+                });
+
             modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", b =>
                 {
                     b.Property<Guid>("Id")

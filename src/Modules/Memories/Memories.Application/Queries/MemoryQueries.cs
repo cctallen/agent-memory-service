@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgentMemoryService.Memories.Application.Queries;
 
-public sealed record GetMemoryByIdQuery(Guid NamespaceId, Guid MemoryId, Guid RequesterId, bool IsAgent = false)
+public sealed record GetMemoryByIdQuery(Guid NamespaceId, Guid MemoryId, Guid RequesterId, bool IsAgent = false,
+    string? AgentName = null)
     : IRequest<Result<MemoryResponse>>;
 
 public sealed class GetMemoryByIdHandler : IRequestHandler<GetMemoryByIdQuery, Result<MemoryResponse>>
@@ -29,12 +30,25 @@ public sealed class GetMemoryByIdHandler : IRequestHandler<GetMemoryByIdQuery, R
         if (memory is null)
             return Result<MemoryResponse>.Failure(Error.NotFound("Memory.NotFound", "Memory not found"));
 
+        // Record access log when called by an agent
+        if (query.IsAgent && query.RequesterId != Guid.Empty)
+        {
+            _db.MemoryAccessLogs.Add(MemoryAccessLog.Create(
+                query.NamespaceId, query.RequesterId,
+                query.AgentName ?? "unknown",
+                AccessOperation.Get,
+                memoryId: memory.Id,
+                recordCount: 1));
+            await _db.SaveChangesAsync(ct);
+        }
+
         return Result<MemoryResponse>.Success(memory.ToResponse());
     }
 }
 
 public sealed record GetMemoriesQuery(Guid NamespaceId, Guid RequesterId, int Page = 1, int PageSize = 20,
-    string? TypeFilter = null, Guid? AgentId = null, bool IsAgent = false, DateTime? Since = null)
+    string? TypeFilter = null, Guid? AgentId = null, bool IsAgent = false, DateTime? Since = null,
+    string? AgentName = null)
     : IRequest<Result<PagedResult<MemoryResponse>>>;
 
 public sealed record PagedResult<T>(List<T> Items, int Total, int Page, int PageSize);
@@ -95,12 +109,23 @@ public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Resul
             ? await fetchFromDb(ct)
             : await _cache.GetOrCreateAsync(cacheKey, fetchFromDb, expiry: TimeSpan.FromMinutes(1), ct: ct);
 
+        // Record access log when called by an agent
+        if (query.IsAgent && query.RequesterId != Guid.Empty)
+        {
+            _db.MemoryAccessLogs.Add(MemoryAccessLog.Create(
+                query.NamespaceId, query.RequesterId,
+                query.AgentName ?? "unknown",
+                AccessOperation.List,
+                recordCount: cached!.Items.Count));
+            await _db.SaveChangesAsync(ct);
+        }
+
         return Result<PagedResult<MemoryResponse>>.Success(cached!);
     }
 }
 
 public sealed record SearchMemoriesQuery(Guid NamespaceId, Guid RequesterId, string Query, int TopK = 10,
-    bool IsAgent = false)
+    bool IsAgent = false, string? AgentName = null)
     : IRequest<Result<List<MemoryResponse>>>;
 
 public sealed class SearchMemoriesHandler : IRequestHandler<SearchMemoriesQuery, Result<List<MemoryResponse>>>
@@ -132,6 +157,20 @@ public sealed class SearchMemoriesHandler : IRequestHandler<SearchMemoriesQuery,
             .Take(query.TopK)
             .ToListAsync(ct);
 
-        return Result<List<MemoryResponse>>.Success(results.Select(m => m.ToResponse()).ToList());
+        var responses = results.Select(m => m.ToResponse()).ToList();
+
+        // Record access log when called by an agent
+        if (query.IsAgent && query.RequesterId != Guid.Empty)
+        {
+            _db.MemoryAccessLogs.Add(MemoryAccessLog.Create(
+                query.NamespaceId, query.RequesterId,
+                query.AgentName ?? "unknown",
+                AccessOperation.Search,
+                query: query.Query,
+                recordCount: responses.Count));
+            await _db.SaveChangesAsync(ct);
+        }
+
+        return Result<List<MemoryResponse>>.Success(responses);
     }
 }

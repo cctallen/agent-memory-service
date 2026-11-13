@@ -15,6 +15,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<MemoryNamespace> Namespaces => Set<MemoryNamespace>();
     public DbSet<NamespaceMember> NamespaceMembers => Set<NamespaceMember>();
     public DbSet<Memory> Memories => Set<Memory>();
+    public DbSet<MemoryAccessLog> MemoryAccessLogs => Set<MemoryAccessLog>();
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<AgentNamespaceMembership> AgentNamespaces => Set<AgentNamespaceMembership>();
     public DbSet<Secret> Secrets => Set<Secret>();
@@ -74,6 +75,21 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.HasIndex(m => new { m.NamespaceId, m.Visibility, m.IsActive });
             b.Property(m => m.Visibility).HasConversion<int>();
             b.HasQueryFilter(m => m.IsActive);
+        });
+
+        // Memory Access Logs
+        modelBuilder.Entity<MemoryAccessLog>(b =>
+        {
+            b.ToTable("memory_access_logs");
+            b.HasKey(l => l.Id);
+            b.Property(l => l.AgentName).HasMaxLength(200).IsRequired();
+            b.Property(l => l.Query).HasMaxLength(500);
+            b.Property(l => l.Operation).HasConversion<int>();
+            b.HasIndex(l => l.NamespaceId);
+            b.HasIndex(l => l.AgentId);
+            b.HasIndex(l => l.MemoryId);
+            b.HasIndex(l => l.AccessedAt);
+            b.HasIndex(l => new { l.NamespaceId, l.AccessedAt });
         });
 
         // Agents

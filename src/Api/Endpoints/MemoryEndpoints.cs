@@ -20,15 +20,18 @@ public static class MemoryEndpoints
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
-            var result = await mediator.Send(new GetMemoriesQuery(namespaceId, userId, page, pageSize, AgentId: agentId, IsAgent: isAgent, Since: since), ct);
+            var agentName = isAgent ? (user.FindFirstValue(ClaimTypes.Name) ?? "unknown") : null;
+            var result = await mediator.Send(new GetMemoriesQuery(namespaceId, userId, page, pageSize,
+                AgentId: agentId, IsAgent: isAgent, Since: since, AgentName: agentName), ct);
             return result.ToHttpResult();
         });
 
         group.MapGet("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
-            var userId = user.IsInRole("Agent") ? Guid.Empty : Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
-            var result = await mediator.Send(new GetMemoryByIdQuery(namespaceId, id, userId, IsAgent: isAgent), ct);
+            var userId = isAgent ? Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!) : Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var agentName = isAgent ? (user.FindFirstValue(ClaimTypes.Name) ?? "unknown") : null;
+            var result = await mediator.Send(new GetMemoryByIdQuery(namespaceId, id, userId, IsAgent: isAgent, AgentName: agentName), ct);
             return result.ToHttpResult();
         });
 
@@ -37,7 +40,9 @@ public static class MemoryEndpoints
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
-            var result = await mediator.Send(new SearchMemoriesQuery(namespaceId, userId, q, topK, IsAgent: isAgent), ct);
+            var agentName = isAgent ? (user.FindFirstValue(ClaimTypes.Name) ?? "unknown") : null;
+            var result = await mediator.Send(new SearchMemoriesQuery(namespaceId, userId, q, topK,
+                IsAgent: isAgent, AgentName: agentName), ct);
             return result.ToHttpResult();
         });
 
@@ -56,6 +61,22 @@ public static class MemoryEndpoints
             var isAgent = user.IsInRole("Agent");
             var result = await mediator.Send(new DeleteMemoryCommand(id, userId, isAgent), ct);
             return result.ToHttpResult(_ => Results.NoContent());
+        });
+
+        // Access logs (admin only)
+        group.MapGet("/access-logs", async (
+            Guid namespaceId, ISender mediator, ClaimsPrincipal user,
+            int page = 1, int pageSize = 50,
+            Guid? agentId = null, Guid? memoryId = null,
+            int? operation = null,
+            DateTime? since = null, DateTime? until = null,
+            CancellationToken ct = default) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var op = operation.HasValue ? (AgentMemoryService.Memories.Core.Entities.AccessOperation?)operation.Value : null;
+            var result = await mediator.Send(new GetMemoryAccessLogsQuery(
+                namespaceId, userId, page, pageSize, agentId, memoryId, op, since, until), ct);
+            return result.ToHttpResult();
         });
     }
 }
