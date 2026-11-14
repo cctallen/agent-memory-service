@@ -3,6 +3,8 @@ using AgentMemoryService.Memories.Application.Commands;
 using AgentMemoryService.Memories.Application.Queries;
 using AgentMemoryService.Namespaces.Application.Commands;
 using AgentMemoryService.Namespaces.Application.Queries;
+using AgentMemoryService.Organizations.Application.Commands;
+using AgentMemoryService.Organizations.Application.Queries;
 using AgentMemoryService.Secrets.Application.Commands;
 using AgentMemoryService.Secrets.Application.Queries;
 using AgentMemoryService.Shared.Core;
@@ -102,7 +104,9 @@ builder.Services.AddMediatR(cfg =>
         typeof(GetMemoriesQuery).Assembly,      // Memories.Application
         typeof(CreateAgentCommand).Assembly,    // Agents.Application
         typeof(CreateSecretCommand).Assembly,   // Secrets.Application
-        typeof(GetSecretsQuery).Assembly        // Secrets.Application queries
+        typeof(GetSecretsQuery).Assembly,        // Secrets.Application queries
+        typeof(CreateOrgCommand).Assembly,       // Organizations.Application
+        typeof(GetOrgsQuery).Assembly            // Organizations.Application queries
     ));
 
 // ── Secrets encryption ────────────────────────────────────────
@@ -212,6 +216,7 @@ app.MapMemoryEndpoints();
 app.MapAgentEndpoints();
 app.MapUserEndpoints();
 app.MapSecretEndpoints();
+app.MapOrganizationEndpoints();
 
 // ── MCP endpoint ──────────────────────────────────────────────
 // Secured by the existing ApiKey middleware — pass X-Api-Key + X-Mcp-Namespace

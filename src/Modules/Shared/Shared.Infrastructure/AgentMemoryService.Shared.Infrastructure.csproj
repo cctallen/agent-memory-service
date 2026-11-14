@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\Memories\Memories.Core\AgentMemoryService.Memories.Core.csproj" />
     <ProjectReference Include="..\..\Agents\Agents.Core\AgentMemoryService.Agents.Core.csproj" />
     <ProjectReference Include="..\..\Secrets\Secrets.Core\AgentMemoryService.Secrets.Core.csproj" />
+    <ProjectReference Include="..\..\Organizations\Organizations.Core\AgentMemoryService.Organizations.Core.csproj" />
   </ItemGroup>
 
 </Project>

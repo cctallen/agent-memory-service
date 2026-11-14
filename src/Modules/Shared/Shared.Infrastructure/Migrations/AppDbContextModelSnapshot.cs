@@ -216,6 +216,10 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.Property<bool>("IsPublic")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
@@ -228,6 +232,8 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -252,6 +258,62 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.HasKey("NamespaceId", "UserId");
 
                     b.ToTable("namespace_members", (string)null);
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Organizations.Core.Entities.Organization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("organizations", (string)null);
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Organizations.Core.Entities.OrganizationMember", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.HasKey("OrganizationId", "UserId");
+
+                    b.ToTable("organization_members", (string)null);
                 });
 
             modelBuilder.Entity("AgentMemoryService.Secrets.Core.Entities.Secret", b =>
@@ -541,6 +603,15 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AgentMemoryService.Organizations.Core.Entities.OrganizationMember", b =>
+                {
+                    b.HasOne("AgentMemoryService.Organizations.Core.Entities.Organization", null)
+                        .WithMany("Members")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -598,6 +669,11 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", b =>
+                {
+                    b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Organizations.Core.Entities.Organization", b =>
                 {
                     b.Navigation("Members");
                 });

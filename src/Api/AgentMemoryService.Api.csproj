@@ -24,6 +24,7 @@
     <ProjectReference Include="..\Modules\Memories\Memories.Infrastructure\AgentMemoryService.Memories.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Agents\Agents.Infrastructure\AgentMemoryService.Agents.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Secrets\Secrets.Application\AgentMemoryService.Secrets.Application.csproj" />
+    <ProjectReference Include="..\Modules\Organizations\Organizations.Application\AgentMemoryService.Organizations.Application.csproj" />
     <ProjectReference Include="..\Modules\Shared\Shared.Infrastructure\AgentMemoryService.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\Mcp\AgentMemoryService.Mcp.Core\AgentMemoryService.Mcp.Core.csproj" />
   </ItemGroup>

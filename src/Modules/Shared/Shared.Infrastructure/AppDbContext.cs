@@ -1,6 +1,7 @@
 using AgentMemoryService.Agents.Core.Entities;
 using AgentMemoryService.Memories.Core.Entities;
 using AgentMemoryService.Namespaces.Core.Entities;
+using AgentMemoryService.Organizations.Core.Entities;
 using AgentMemoryService.Secrets.Core.Entities;
 using AgentMemoryService.Users.Core.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -19,6 +20,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<AgentNamespaceMembership> AgentNamespaces => Set<AgentNamespaceMembership>();
     public DbSet<Secret> Secrets => Set<Secret>();
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -130,6 +133,35 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.HasIndex(s => new { s.NamespaceId, s.Name }).IsUnique();
             b.HasIndex(s => s.NamespaceId);
             b.HasQueryFilter(s => s.IsActive);
+        });
+
+        // Namespaces — add OrganizationId FK
+        modelBuilder.Entity<MemoryNamespace>(b =>
+        {
+            b.Property(n => n.OrganizationId).HasColumnName("organization_id");
+            b.HasIndex(n => n.OrganizationId);
+        });
+
+        // Organizations
+        modelBuilder.Entity<Organization>(b =>
+        {
+            b.ToTable("organizations");
+            b.HasKey(o => o.Id);
+            b.Property(o => o.Slug).HasMaxLength(60).IsRequired();
+            b.HasIndex(o => o.Slug).IsUnique();
+            b.Property(o => o.DisplayName).HasMaxLength(100).IsRequired();
+            b.Property(o => o.Description).HasMaxLength(500);
+            b.HasMany(o => o.Members)
+                .WithOne()
+                .HasForeignKey(m => m.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrganizationMember>(b =>
+        {
+            b.ToTable("organization_members");
+            b.HasKey(m => new { m.OrganizationId, m.UserId });
+            b.Property(m => m.Role).IsRequired();
         });
     }
 

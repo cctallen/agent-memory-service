@@ -10,6 +10,7 @@ public sealed class MemoryNamespace : AuditableEntity
     public string? Description { get; private set; }
     public Guid OwnerId { get; private set; }
     public bool IsPublic { get; private set; }
+    public Guid? OrganizationId { get; private set; }
 
     private readonly List<NamespaceMember> _members = [];
     public IReadOnlyCollection<NamespaceMember> Members => _members.AsReadOnly();
@@ -33,6 +34,9 @@ public sealed class MemoryNamespace : AuditableEntity
         Description = description;
         IsPublic = isPublic;
     }
+
+    public void AttachToOrg(Guid orgId) => OrganizationId = orgId;
+    public void DetachFromOrg() => OrganizationId = null;
 
     public void AddMember(Guid userId, NamespaceRole role)
     {
