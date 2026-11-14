@@ -1,11 +1,15 @@
 using AgentMemoryService.Agents.Application.Commands;
 using AgentMemoryService.Agents.Application.Queries;
+using AgentMemoryService.Agents.Core.Entities;
 using AgentMemoryService.Shared.Core;
 using AgentMemoryService.Shared.Infrastructure;
 using MediatR;
 using System.Security.Claims;
 
 namespace AgentMemoryService.Api.Endpoints;
+
+public sealed record AddAgentToNamespaceRequest(AgentPermissions Permissions = AgentPermissions.ReadWrite);
+public sealed record UpdateAgentPermissionsRequest(AgentPermissions Permissions);
 
 public static class AgentEndpoints
 {
@@ -50,10 +54,19 @@ public static class AgentEndpoints
         });
 
         // POST /api/agents/{id}/namespaces/{namespaceId} — add agent to a namespace
-        agents.MapPost("/{id:guid}/namespaces/{namespaceId:guid}", async (Guid id, Guid namespaceId, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        agents.MapPost("/{id:guid}/namespaces/{namespaceId:guid}", async (Guid id, Guid namespaceId, AddAgentToNamespaceRequest? req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await mediator.Send(new AddAgentToNamespaceCommand(id, namespaceId, userId), ct);
+            var permissions = req?.Permissions ?? AgentPermissions.ReadWrite;
+            var result = await mediator.Send(new AddAgentToNamespaceCommand(id, namespaceId, userId, permissions), ct);
+            return result.ToHttpResult(a => Results.Ok(a));
+        });
+
+        // PUT /api/agents/{id}/namespaces/{namespaceId}/permissions — update agent permissions on a namespace
+        agents.MapPut("/{id:guid}/namespaces/{namespaceId:guid}/permissions", async (Guid id, Guid namespaceId, UpdateAgentPermissionsRequest req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await mediator.Send(new UpdateAgentPermissionsCommand(id, namespaceId, userId, req.Permissions), ct);
             return result.ToHttpResult(a => Results.Ok(a));
         });
 

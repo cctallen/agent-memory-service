@@ -9,13 +9,15 @@ namespace AgentMemoryService.Agents.Application.Commands;
 // ─────────────────────────────────────────────────────────────
 // Shared response
 // ─────────────────────────────────────────────────────────────
-public sealed record AgentResponse(Guid Id, string Name, string? Description, string ApiKey, DateTime CreatedAt, List<Guid> NamespaceIds);
+public sealed record AgentNamespaceEntry(Guid NamespaceId, AgentPermissions Permissions);
+public sealed record AgentResponse(Guid Id, string Name, string? Description, string ApiKey, DateTime CreatedAt, List<Guid> NamespaceIds, List<AgentNamespaceEntry> NamespacePermissions);
 
 public static class AgentMappings
 {
     public static AgentResponse ToResponse(this Agent a) =>
         new(a.Id, a.Name, a.Description, a.ApiKey, a.CreatedAt,
-            a.Namespaces.Select(n => n.NamespaceId).ToList());
+            a.Namespaces.Select(n => n.NamespaceId).ToList(),
+            a.Namespaces.Select(n => new AgentNamespaceEntry(n.NamespaceId, n.Permissions)).ToList());
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -56,7 +58,7 @@ public sealed class CreateAgentHandler : IRequestHandler<CreateAgentCommand, Res
 // ─────────────────────────────────────────────────────────────
 // Add Agent to Namespace
 // ─────────────────────────────────────────────────────────────
-public sealed record AddAgentToNamespaceCommand(Guid AgentId, Guid NamespaceId, Guid RequesterId)
+public sealed record AddAgentToNamespaceCommand(Guid AgentId, Guid NamespaceId, Guid RequesterId, AgentPermissions Permissions = AgentPermissions.ReadWrite)
     : IRequest<Result<AgentResponse>>;
 
 public sealed class AddAgentToNamespaceHandler : IRequestHandler<AddAgentToNamespaceCommand, Result<AgentResponse>>
@@ -76,9 +78,40 @@ public sealed class AddAgentToNamespaceHandler : IRequestHandler<AddAgentToNames
             .FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
         if (agent is null) return Result<AgentResponse>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
 
-        agent.AddNamespace(command.NamespaceId);
+        agent.AddNamespace(command.NamespaceId, command.Permissions);
         await _db.SaveChangesAsync(ct);
 
+        return Result<AgentResponse>.Success(agent.ToResponse());
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Update Agent Namespace Permissions
+// ─────────────────────────────────────────────────────────────
+public sealed record UpdateAgentPermissionsCommand(Guid AgentId, Guid NamespaceId, Guid RequesterId, AgentPermissions Permissions)
+    : IRequest<Result<AgentResponse>>;
+
+public sealed class UpdateAgentPermissionsHandler : IRequestHandler<UpdateAgentPermissionsCommand, Result<AgentResponse>>
+{
+    private readonly AppDbContext _db;
+
+    public UpdateAgentPermissionsHandler(AppDbContext db) => _db = db;
+
+    public async Task<Result<AgentResponse>> Handle(UpdateAgentPermissionsCommand command, CancellationToken ct)
+    {
+        var ns = await _db.Namespaces.Include(n => n.Members)
+            .FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
+        if (ns is null) return Result<AgentResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
+        if (!ns.CanWrite(command.RequesterId)) return Result<AgentResponse>.Failure(Error.Forbidden("Agent.Forbidden", "Writer access required"));
+
+        var agent = await _db.Agents.Include(a => a.Namespaces)
+            .FirstOrDefaultAsync(a => a.Id == command.AgentId, ct);
+        if (agent is null) return Result<AgentResponse>.Failure(Error.NotFound("Agent.NotFound", "Agent not found"));
+
+        var updated = agent.UpdateNamespacePermissions(command.NamespaceId, command.Permissions);
+        if (!updated) return Result<AgentResponse>.Failure(Error.NotFound("Agent.NotInNamespace", "Agent is not in this namespace"));
+
+        await _db.SaveChangesAsync(ct);
         return Result<AgentResponse>.Success(agent.ToResponse());
     }
 }

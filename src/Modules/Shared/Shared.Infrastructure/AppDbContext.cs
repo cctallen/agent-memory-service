@@ -111,6 +111,11 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         {
             b.ToTable("agent_namespaces");
             b.HasKey(m => new { m.AgentId, m.NamespaceId });
+            b.Property(m => m.Permissions)
+                .HasColumnName("permissions")
+                .HasDefaultValue(AgentPermissions.ReadWrite)
+                .HasSentinel(AgentPermissions.None)
+                .IsRequired();
         });
 
         // Secrets

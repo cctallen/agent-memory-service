@@ -71,6 +71,12 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Permissions")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(3)
+                        .HasColumnName("permissions");
+
                     b.HasKey("AgentId", "NamespaceId");
 
                     b.ToTable("agent_namespaces", (string)null);

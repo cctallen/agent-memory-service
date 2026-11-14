@@ -53,9 +53,12 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<Authenti
             new(ClaimTypes.Role, "Agent"),
         };
 
-        // Add a claim for each namespace the agent belongs to
+        // Add a claim for each namespace the agent belongs to, with permissions
         foreach (var membership in agent.Namespaces)
+        {
             claims.Add(new Claim("namespace_id", membership.NamespaceId.ToString()));
+            claims.Add(new Claim($"ns_permissions_{membership.NamespaceId}", ((int)membership.Permissions).ToString()));
+        }
 
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);

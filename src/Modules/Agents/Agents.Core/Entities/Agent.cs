@@ -2,6 +2,21 @@ using AgentMemoryService.Shared.Core;
 
 namespace AgentMemoryService.Agents.Core.Entities;
 
+[Flags]
+public enum AgentPermissions
+{
+    None        = 0,
+    Read        = 1 << 0,  // 1 — read memories
+    Write       = 1 << 1,  // 2 — create/update/delete memories
+    ReadSecrets = 1 << 2,  // 4 — read secrets
+    WriteSecrets= 1 << 3,  // 8 — create/update/delete secrets
+
+    // Convenience combos
+    ReadOnly    = Read,
+    ReadWrite   = Read | Write,
+    Full        = Read | Write | ReadSecrets | WriteSecrets,
+}
+
 public sealed class Agent : AuditableEntity
 {
     public Guid Id { get; private set; }
@@ -24,10 +39,18 @@ public sealed class Agent : AuditableEntity
             ApiKey = GenerateApiKey()
         };
 
-    public void AddNamespace(Guid namespaceId)
+    public void AddNamespace(Guid namespaceId, AgentPermissions permissions = AgentPermissions.ReadWrite)
     {
         if (_namespaces.Any(n => n.NamespaceId == namespaceId)) return;
-        _namespaces.Add(new AgentNamespaceMembership(Id, namespaceId));
+        _namespaces.Add(new AgentNamespaceMembership(Id, namespaceId, permissions));
+    }
+
+    public bool UpdateNamespacePermissions(Guid namespaceId, AgentPermissions permissions)
+    {
+        var m = _namespaces.FirstOrDefault(n => n.NamespaceId == namespaceId);
+        if (m is null) return false;
+        m.UpdatePermissions(permissions);
+        return true;
     }
 
     public bool RemoveNamespace(Guid namespaceId)
@@ -50,14 +73,18 @@ public sealed class AgentNamespaceMembership
 {
     public Guid AgentId { get; private set; }
     public Guid NamespaceId { get; private set; }
+    public AgentPermissions Permissions { get; private set; }
     public DateTime JoinedAt { get; private set; }
 
     private AgentNamespaceMembership() { }
 
-    public AgentNamespaceMembership(Guid agentId, Guid namespaceId)
+    public AgentNamespaceMembership(Guid agentId, Guid namespaceId, AgentPermissions permissions = AgentPermissions.ReadWrite)
     {
         AgentId = agentId;
         NamespaceId = namespaceId;
+        Permissions = permissions;
         JoinedAt = DateTime.UtcNow;
     }
+
+    public void UpdatePermissions(AgentPermissions permissions) => Permissions = permissions;
 }

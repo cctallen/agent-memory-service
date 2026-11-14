@@ -1,3 +1,4 @@
+using AgentMemoryService.Agents.Core.Entities;
 using AgentMemoryService.Secrets.Application.Commands;
 using AgentMemoryService.Secrets.Application.Queries;
 using AgentMemoryService.Shared.Infrastructure;
@@ -20,6 +21,7 @@ public static class SecretEndpoints
         // List all secrets in namespace (metadata only — no values)
         group.MapGet("/", async (Guid namespaceId, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanReadSecrets(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var result = await mediator.Send(new GetSecretsQuery(namespaceId, userId, IsAgent: isAgent), ct);
@@ -29,6 +31,7 @@ public static class SecretEndpoints
         // Create a new secret
         group.MapPost("/", async (Guid namespaceId, CreateSecretCommand req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanWriteSecrets(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var command = req with { NamespaceId = namespaceId, RequesterId = userId, IsAgent = isAgent };
@@ -39,6 +42,7 @@ public static class SecretEndpoints
         // Update a secret (rotate value or rename)
         group.MapPut("/{id:guid}", async (Guid namespaceId, Guid id, UpdateSecretCommand req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanWriteSecrets(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var command = req with { SecretId = id, NamespaceId = namespaceId, RequesterId = userId, IsAgent = isAgent };
@@ -49,6 +53,7 @@ public static class SecretEndpoints
         // Reveal a secret by name — agent-friendly lookup without needing the UUID
         group.MapPost("/reveal-by-name", async (Guid namespaceId, RevealByNameRequest req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanReadSecrets(user, namespaceId)) return Results.Forbid();
             var userId = user.IsInRole("Agent") ? Guid.Empty : Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var result = await mediator.Send(new RevealSecretByNameCommand(req.Name, namespaceId, userId, IsAgent: isAgent), ct);
@@ -58,6 +63,7 @@ public static class SecretEndpoints
         // Reveal (decrypt) a secret value — explicit action to avoid accidental exposure in list
         group.MapPost("/{id:guid}/reveal", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanReadSecrets(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var result = await mediator.Send(new RevealSecretCommand(id, namespaceId, userId, IsAgent: isAgent), ct);
@@ -67,6 +73,7 @@ public static class SecretEndpoints
         // Delete a secret
         group.MapDelete("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanWriteSecrets(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var result = await mediator.Send(new DeleteSecretCommand(id, namespaceId, userId, IsAgent: isAgent), ct);

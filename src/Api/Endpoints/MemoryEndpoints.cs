@@ -1,3 +1,4 @@
+using AgentMemoryService.Agents.Core.Entities;
 using AgentMemoryService.Memories.Application.Commands;
 using AgentMemoryService.Memories.Application.Queries;
 using AgentMemoryService.Shared.Core;
@@ -6,6 +7,33 @@ using MediatR;
 using System.Security.Claims;
 
 namespace AgentMemoryService.Api.Endpoints;
+
+internal static class AgentPermissionHelper
+{
+    /// <summary>Resolves effective permissions for the caller on a given namespace.
+    /// For human users, always returns Full. For agents, reads the ns_permissions_{id} claim.</summary>
+    public static AgentPermissions GetPermissions(ClaimsPrincipal user, Guid namespaceId)
+    {
+        if (!user.IsInRole("Agent")) return AgentPermissions.Full;
+        var claimKey = $"ns_permissions_{namespaceId}";
+        var raw = user.FindFirstValue(claimKey);
+        return raw is not null && int.TryParse(raw, out var val)
+            ? (AgentPermissions)val
+            : AgentPermissions.ReadWrite; // legacy agents without permission claim get ReadWrite
+    }
+
+    public static bool CanRead(ClaimsPrincipal user, Guid namespaceId) =>
+        GetPermissions(user, namespaceId).HasFlag(AgentPermissions.Read);
+
+    public static bool CanWrite(ClaimsPrincipal user, Guid namespaceId) =>
+        GetPermissions(user, namespaceId).HasFlag(AgentPermissions.Write);
+
+    public static bool CanReadSecrets(ClaimsPrincipal user, Guid namespaceId) =>
+        GetPermissions(user, namespaceId).HasFlag(AgentPermissions.ReadSecrets);
+
+    public static bool CanWriteSecrets(ClaimsPrincipal user, Guid namespaceId) =>
+        GetPermissions(user, namespaceId).HasFlag(AgentPermissions.WriteSecrets);
+}
 
 public static class MemoryEndpoints
 {
@@ -18,6 +46,7 @@ public static class MemoryEndpoints
         group.MapGet("/", async (Guid namespaceId, ISender mediator, ClaimsPrincipal user,
             int page = 1, int pageSize = 20, Guid? agentId = null, DateTime? since = null, CancellationToken ct = default) =>
         {
+            if (!AgentPermissionHelper.CanRead(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var agentName = isAgent ? (user.FindFirstValue(ClaimTypes.Name) ?? "unknown") : null;
@@ -28,8 +57,9 @@ public static class MemoryEndpoints
 
         group.MapGet("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanRead(user, namespaceId)) return Results.Forbid();
             var isAgent = user.IsInRole("Agent");
-            var userId = isAgent ? Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!) : Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var agentName = isAgent ? (user.FindFirstValue(ClaimTypes.Name) ?? "unknown") : null;
             var result = await mediator.Send(new GetMemoryByIdQuery(namespaceId, id, userId, IsAgent: isAgent, AgentName: agentName), ct);
             return result.ToHttpResult();
@@ -38,6 +68,7 @@ public static class MemoryEndpoints
         group.MapGet("/search", async (Guid namespaceId, string q, ISender mediator, ClaimsPrincipal user,
             int topK = 10, CancellationToken ct = default) =>
         {
+            if (!AgentPermissionHelper.CanRead(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var agentName = isAgent ? (user.FindFirstValue(ClaimTypes.Name) ?? "unknown") : null;
@@ -48,6 +79,7 @@ public static class MemoryEndpoints
 
         group.MapPost("/", async (Guid namespaceId, AddMemoryCommand req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanWrite(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var command = req with { NamespaceId = namespaceId, RequesterId = userId, IsAgent = isAgent };
@@ -57,6 +89,7 @@ public static class MemoryEndpoints
 
         group.MapDelete("/{id:guid}", async (Guid namespaceId, Guid id, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (!AgentPermissionHelper.CanWrite(user, namespaceId)) return Results.Forbid();
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var isAgent = user.IsInRole("Agent");
             var result = await mediator.Send(new DeleteMemoryCommand(id, userId, isAgent), ct);
