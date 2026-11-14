@@ -17,25 +17,32 @@ public static class UserEndpoints
             .WithTags("Users")
             .RequireAuthorization("Admin");
 
-        // GET /api/users — list all registered users
+        // GET /api/users — list all registered users (includes roles)
         group.MapGet("/", async (UserManager<ApplicationUser> userManager, CancellationToken ct) =>
         {
             var users = await userManager.Users
                 .AsNoTracking()
                 .Where(u => u.IsActive)
                 .OrderBy(u => u.Email)
-                .Select(u => new
+                .ToListAsync(ct);
+
+            var result = new List<object>();
+            foreach (var u in users)
+            {
+                var roles = await userManager.GetRolesAsync(u);
+                result.Add(new
                 {
                     u.Id,
                     u.Email,
                     u.FirstName,
                     u.LastName,
                     FullName = (u.FirstName + " " + u.LastName).Trim(),
-                    u.CreatedAt
-                })
-                .ToListAsync(ct);
+                    u.CreatedAt,
+                    Roles = roles.ToList()
+                });
+            }
 
-            return Results.Ok(users);
+            return Results.Ok(result);
         })
         .WithSummary("List all registered users");
 
@@ -80,9 +87,28 @@ public static class UserEndpoints
             return result.ToHttpResult(_ => Results.NoContent());
         })
         .WithSummary("Admin reset a user's password");
+
+        // POST /api/users/{id}/roles — assign a role
+        group.MapPost("/{id:guid}/roles", async (Guid id, AssignRoleRequest req, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var requesterId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await mediator.Send(new AssignRoleCommand(id, requesterId, req.Role), ct);
+            return result.ToHttpResult(_ => Results.NoContent());
+        })
+        .WithSummary("Assign a role to a user");
+
+        // DELETE /api/users/{id}/roles/{role} — remove a role
+        group.MapDelete("/{id:guid}/roles/{role}", async (Guid id, string role, ISender mediator, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var requesterId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await mediator.Send(new RemoveRoleCommand(id, requesterId, role), ct);
+            return result.ToHttpResult(_ => Results.NoContent());
+        })
+        .WithSummary("Remove a role from a user");
     }
 }
 
 // Request body records
 public sealed record UpdateUserRequest(string FirstName, string LastName, string Email);
 public sealed record ResetPasswordRequest(string NewPassword);
+public sealed record AssignRoleRequest(string Role);

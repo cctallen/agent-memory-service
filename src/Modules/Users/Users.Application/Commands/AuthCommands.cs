@@ -100,6 +100,80 @@ public sealed class LoginCommandValidator : AbstractValidator<LoginCommand>
 }
 
 // ─────────────────────────────────────────────────────────────
+// Assign Role
+// ─────────────────────────────────────────────────────────────
+public sealed record AssignRoleCommand(Guid TargetUserId, Guid RequesterId, string Role)
+    : IRequest<Result<bool>>;
+
+public sealed class AssignRoleCommandValidator : AbstractValidator<AssignRoleCommand>
+{
+    public AssignRoleCommandValidator()
+    {
+        RuleFor(x => x.Role).NotEmpty().WithMessage("Role is required");
+    }
+}
+
+public sealed class AssignRoleHandler : IRequestHandler<AssignRoleCommand, Result<bool>>
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public AssignRoleHandler(UserManager<ApplicationUser> userManager) => _userManager = userManager;
+
+    public async Task<Result<bool>> Handle(AssignRoleCommand command, CancellationToken ct)
+    {
+        if (command.TargetUserId == command.RequesterId)
+            return Result<bool>.Failure(Error.Validation("Role.SelfModify", "Cannot modify your own role"));
+
+        var user = await _userManager.FindByIdAsync(command.TargetUserId.ToString());
+        if (user is null)
+            return Result<bool>.Failure(Error.NotFound("User.NotFound", "User not found"));
+
+        if (await _userManager.IsInRoleAsync(user, command.Role))
+            return Result<bool>.Success(true); // already has the role — idempotent
+
+        var result = await _userManager.AddToRoleAsync(user, command.Role);
+        if (!result.Succeeded)
+            return Result<bool>.Failure(Error.Validation("Role.AssignFailed",
+                string.Join("; ", result.Errors.Select(e => e.Description))));
+
+        return Result<bool>.Success(true);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Remove Role
+// ─────────────────────────────────────────────────────────────
+public sealed record RemoveRoleCommand(Guid TargetUserId, Guid RequesterId, string Role)
+    : IRequest<Result<bool>>;
+
+public sealed class RemoveRoleHandler : IRequestHandler<RemoveRoleCommand, Result<bool>>
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public RemoveRoleHandler(UserManager<ApplicationUser> userManager) => _userManager = userManager;
+
+    public async Task<Result<bool>> Handle(RemoveRoleCommand command, CancellationToken ct)
+    {
+        if (command.TargetUserId == command.RequesterId)
+            return Result<bool>.Failure(Error.Validation("Role.SelfModify", "Cannot modify your own role"));
+
+        var user = await _userManager.FindByIdAsync(command.TargetUserId.ToString());
+        if (user is null)
+            return Result<bool>.Failure(Error.NotFound("User.NotFound", "User not found"));
+
+        if (!await _userManager.IsInRoleAsync(user, command.Role))
+            return Result<bool>.Success(true); // already doesn't have the role — idempotent
+
+        var result = await _userManager.RemoveFromRoleAsync(user, command.Role);
+        if (!result.Succeeded)
+            return Result<bool>.Failure(Error.Validation("Role.RemoveFailed",
+                string.Join("; ", result.Errors.Select(e => e.Description))));
+
+        return Result<bool>.Success(true);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Refresh Token
 // ─────────────────────────────────────────────────────────────
 public sealed record RefreshTokenCommand(string RefreshToken)
