@@ -1,8 +1,11 @@
+using AgentMemoryService.Organizations.Core.Entities;
 using AgentMemoryService.Shared.Core;
+using AgentMemoryService.Shared.Infrastructure;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using AgentMemoryService.Users.Core.Entities;
+using System.Text.RegularExpressions;
 
 namespace AgentMemoryService.Users.Application.Commands;
 
@@ -14,7 +17,7 @@ public sealed record AuthTokenResponse(string AccessToken, string RefreshToken, 
 // ─────────────────────────────────────────────────────────────
 // Register
 // ─────────────────────────────────────────────────────────────
-public sealed record RegisterCommand(string Email, string Password, string FirstName, string LastName)
+public sealed record RegisterCommand(string Email, string Password, string FirstName, string LastName, string OrganizationName)
     : IRequest<Result<RegisterResponse>>;
 
 public sealed record RegisterResponse(Guid UserId, string Email, string FullName);
@@ -42,14 +45,23 @@ public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand
         RuleFor(x => x.LastName)
             .NotEmpty().WithMessage("Last name is required")
             .MaximumLength(100);
+
+        RuleFor(x => x.OrganizationName)
+            .NotEmpty().WithMessage("Organization name is required")
+            .MaximumLength(100).WithMessage("Organization name must be 100 characters or fewer");
     }
 }
 
 public sealed class RegisterHandler : IRequestHandler<RegisterCommand, Result<RegisterResponse>>
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly AppDbContext _db;
 
-    public RegisterHandler(UserManager<ApplicationUser> userManager) => _userManager = userManager;
+    public RegisterHandler(UserManager<ApplicationUser> userManager, AppDbContext db)
+    {
+        _userManager = userManager;
+        _db = db;
+    }
 
     public async Task<Result<RegisterResponse>> Handle(RegisterCommand command, CancellationToken ct)
     {
@@ -75,8 +87,23 @@ public sealed class RegisterHandler : IRequestHandler<RegisterCommand, Result<Re
                 Error.Validation("User.CreateFailed", errors));
         }
 
+        // Create org and make the new user the Owner
+        var slug = GenerateSlug(command.OrganizationName, user.Id);
+        var org = Organization.Create(slug, command.OrganizationName, user.Id);
+        org.AddMember(user.Id, OrgRole.Owner);
+        _db.Organizations.Add(org);
+        await _db.SaveChangesAsync(ct);
+
         return Result<RegisterResponse>.Success(
             new RegisterResponse(user.Id, user.Email!, user.FullName));
+    }
+
+    private static string GenerateSlug(string name, Guid userId)
+    {
+        var slug = Regex.Replace(name.ToLowerInvariant().Trim(), @"[^a-z0-9]+", "-").Trim('-');
+        // Append a short suffix from the userId to avoid collisions
+        var suffix = userId.ToString("N")[..6];
+        return $"{slug}-{suffix}";
     }
 }
 
