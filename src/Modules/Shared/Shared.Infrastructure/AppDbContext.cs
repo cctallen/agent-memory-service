@@ -145,6 +145,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         {
             b.Property(n => n.OrganizationId).HasColumnName("organization_id");
             b.HasIndex(n => n.OrganizationId);
+            b.HasOne<Organization>().WithMany().HasForeignKey(n => n.OrganizationId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // Organizations
