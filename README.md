@@ -52,8 +52,8 @@ Swagger UI: http://localhost:5000/swagger
 dotnet ef database update  --project ./Modules/Shared/Shared.Infrastructure/AgentMemoryService.Shared.Infrastructure.csproj --startup-project ./Api/AgentMemoryService.Api.csproj
 
 # Build Deploy
-aws ssm start-session --target i-06d482809334e0e96 --region us-east-2
-cd /opt/agent-memory-service
-sudo git pull origin master
-sudo dotnet publish src/Api/AgentMemoryService.Api.csproj -c Release -o /opt/agent-memory-service/publish
-sudo systemctl restart agent-memory-service
+- aws ssm start-session --target i-06d482809334e0e96 --region us-east-2
+- cd /opt/agent-memory-service
+- sudo git pull origin master
+- sudo dotnet publish src/Api/AgentMemoryService.Api.csproj -c Release -o /opt/agent-memory-service/publish
+- sudo systemctl restart agent-memory-service
