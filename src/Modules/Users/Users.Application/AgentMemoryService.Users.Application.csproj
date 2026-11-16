@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.Core\AgentMemoryService.Shared.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\Shared.Infrastructure\AgentMemoryService.Shared.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Organizations\Organizations.Core\AgentMemoryService.Organizations.Core.csproj" />
     <ProjectReference Include="..\Users.Core\AgentMemoryService.Users.Core.csproj" />
   </ItemGroup>
 
