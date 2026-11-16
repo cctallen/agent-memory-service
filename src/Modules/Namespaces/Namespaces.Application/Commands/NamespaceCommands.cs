@@ -31,6 +31,15 @@ public sealed class CreateNamespaceHandler : IRequestHandler<CreateNamespaceComm
             return Result<NamespaceResponse>.Failure(Error.Conflict("Namespace.SlugTaken", $"Slug '{command.Slug}' is already taken"));
 
         var ns = MemoryNamespace.Create(command.Slug, command.DisplayName, command.OwnerId, command.Description, command.IsPublic);
+
+        // Associate with the user's org automatically
+        var orgId = await _db.OrganizationMembers
+            .Where(m => m.UserId == command.OwnerId)
+            .Select(m => m.OrganizationId)
+            .FirstOrDefaultAsync(ct);
+        if (orgId != Guid.Empty)
+            ns.AttachToOrg(orgId);
+
         _db.Namespaces.Add(ns);
         await _db.SaveChangesAsync(ct);
 
