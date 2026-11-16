@@ -23,7 +23,7 @@ public sealed class GetSecretsHandler : IRequestHandler<GetSecretsQuery, Result<
         var ns = await _db.Namespaces.Include(n => n.Members)
             .FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
         if (ns is null) return Result<List<SecretMetaResponse>>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
+        if (!query.IsAgent && !await _db.UserHasNamespaceAccessAsync(ns, query.RequesterId, ct))
             return Result<List<SecretMetaResponse>>.Failure(Error.Forbidden("Secret.Forbidden", "Read access required"));
 
         var secrets = await _db.Secrets

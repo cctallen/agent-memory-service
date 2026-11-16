@@ -45,7 +45,7 @@ public sealed class GetMemoryAccessLogsHandler
         if (ns is null)
             return Result<PagedResult<MemoryAccessLogResponse>>.Failure(
                 Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!ns.HasAccess(query.RequesterId))
+        if (!await _db.UserHasNamespaceAccessAsync(ns, query.RequesterId, ct))
             return Result<PagedResult<MemoryAccessLogResponse>>.Failure(
                 Error.Forbidden("AccessLog.Forbidden", "Access denied"));
 

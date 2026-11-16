@@ -22,7 +22,7 @@ public sealed class GetMemoryByIdHandler : IRequestHandler<GetMemoryByIdQuery, R
     {
         var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
         if (ns is null) return Result<MemoryResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
+        if (!query.IsAgent && !await _db.UserHasNamespaceAccessAsync(ns, query.RequesterId, ct))
             return Result<MemoryResponse>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
 
         var memory = await _db.Memories
@@ -69,7 +69,7 @@ public sealed class GetMemoriesHandler : IRequestHandler<GetMemoriesQuery, Resul
         var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
         if (ns is null) return Result<PagedResult<MemoryResponse>>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
         // Agents are pre-scoped to their namespace via API key — skip member check
-        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
+        if (!query.IsAgent && !await _db.UserHasNamespaceAccessAsync(ns, query.RequesterId, ct))
             return Result<PagedResult<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
         if (query.IsAgent && ns.Id != query.NamespaceId)
             return Result<PagedResult<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Agent not scoped to this namespace"));
@@ -139,7 +139,7 @@ public sealed class SearchMemoriesHandler : IRequestHandler<SearchMemoriesQuery,
         var ns = await _db.Namespaces.Include(n => n.Members).FirstOrDefaultAsync(n => n.Id == query.NamespaceId, ct);
         if (ns is null) return Result<List<MemoryResponse>>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
         // Agents are pre-scoped to their namespace via API key — skip member check
-        if (!query.IsAgent && !ns.HasAccess(query.RequesterId))
+        if (!query.IsAgent && !await _db.UserHasNamespaceAccessAsync(ns, query.RequesterId, ct))
             return Result<List<MemoryResponse>>.Failure(Error.Forbidden("Memory.Forbidden", "Access denied"));
 
         // Text search fallback (vector search added when embedding service wired)

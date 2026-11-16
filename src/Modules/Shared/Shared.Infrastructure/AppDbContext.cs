@@ -182,4 +182,18 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         }
         return await base.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Returns true if the user owns or is a member of the namespace,
+    /// OR if the namespace is public and belongs to an org the user is a member of.
+    /// </summary>
+    public async Task<bool> UserHasNamespaceAccessAsync(MemoryNamespace ns, Guid userId, CancellationToken ct = default)
+    {
+        if (ns.OwnerId == userId) return true;
+        if (ns.Members.Any(m => m.UserId == userId)) return true;
+        if (ns.IsPublic && ns.OrganizationId.HasValue)
+            return await OrganizationMembers
+                .AnyAsync(m => m.OrganizationId == ns.OrganizationId.Value && m.UserId == userId, ct);
+        return false;
+    }
 }

@@ -229,7 +229,7 @@ public sealed class RevealSecretByNameHandler : IRequestHandler<RevealSecretByNa
             .FirstOrDefaultAsync(n => n.Id == command.NamespaceId, ct);
         if (ns is null) return Result<SecretRevealResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
 
-        if (!command.IsAgent && !ns.HasAccess(command.RequesterId))
+        if (!command.IsAgent && !await _db.UserHasNamespaceAccessAsync(ns, command.RequesterId, ct))
             return Result<SecretRevealResponse>.Failure(Error.Forbidden("Secret.Forbidden", "Read access required"));
 
         var secret = await _db.Secrets
@@ -261,7 +261,7 @@ public sealed class RevealSecretHandler : IRequestHandler<RevealSecretCommand, R
         if (ns is null) return Result<SecretRevealResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
 
         // Agents and namespace members can reveal
-        if (!command.IsAgent && !ns.HasAccess(command.RequesterId))
+        if (!command.IsAgent && !await _db.UserHasNamespaceAccessAsync(ns, command.RequesterId, ct))
             return Result<SecretRevealResponse>.Failure(Error.Forbidden("Secret.Forbidden", "Read access required"));
 
         var secret = await _db.Secrets
