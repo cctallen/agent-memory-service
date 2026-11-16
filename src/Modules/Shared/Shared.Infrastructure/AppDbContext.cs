@@ -122,6 +122,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
                 .HasDefaultValue(AgentPermissions.ReadWrite)
                 .HasSentinel(AgentPermissions.None)
                 .IsRequired();
+            b.HasOne<MemoryNamespace>().WithMany().HasForeignKey(m => m.NamespaceId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Secrets
