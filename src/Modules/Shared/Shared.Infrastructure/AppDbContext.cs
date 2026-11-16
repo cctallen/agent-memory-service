@@ -78,6 +78,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.HasIndex(m => new { m.NamespaceId, m.Visibility, m.IsActive });
             b.Property(m => m.Visibility).HasConversion<int>();
             b.HasQueryFilter(m => m.IsActive);
+            b.HasOne<MemoryNamespace>().WithMany().HasForeignKey(m => m.NamespaceId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Memory Access Logs
@@ -93,6 +94,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.HasIndex(l => l.MemoryId);
             b.HasIndex(l => l.AccessedAt);
             b.HasIndex(l => new { l.NamespaceId, l.AccessedAt });
+            b.HasOne<MemoryNamespace>().WithMany().HasForeignKey(l => l.NamespaceId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Memory>().WithMany().HasForeignKey(l => l.MemoryId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // Agents
@@ -133,6 +136,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.HasIndex(s => new { s.NamespaceId, s.Name }).IsUnique();
             b.HasIndex(s => s.NamespaceId);
             b.HasQueryFilter(s => s.IsActive);
+            b.HasOne<MemoryNamespace>().WithMany().HasForeignKey(s => s.NamespaceId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Namespaces — add OrganizationId FK
