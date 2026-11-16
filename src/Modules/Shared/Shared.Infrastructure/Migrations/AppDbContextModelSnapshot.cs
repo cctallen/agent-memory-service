@@ -625,6 +625,14 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", b =>
+                {
+                    b.HasOne("AgentMemoryService.Organizations.Core.Entities.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.NamespaceMember", b =>
                 {
                     b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
