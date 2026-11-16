@@ -28,9 +28,18 @@ public sealed class GetNamespacesHandler : IRequestHandler<GetNamespacesQuery, R
         var cacheKey = $"namespaces:user:{query.UserId}:page:{query.Page}:{query.PageSize}";
         var cached = await _cache.GetOrCreateAsync(cacheKey, async (innerCt) =>
         {
+            // Resolve the orgs this user belongs to
+            var userOrgIds = await _db.OrganizationMembers
+                .Where(m => m.UserId == query.UserId)
+                .Select(m => m.OrganizationId)
+                .ToListAsync(innerCt);
+
             var q = _db.Namespaces
                 .Include(n => n.Members)
-                .Where(n => n.OwnerId == query.UserId || n.IsPublic || n.Members.Any(m => m.UserId == query.UserId));
+                .Where(n =>
+                    n.OwnerId == query.UserId ||
+                    n.Members.Any(m => m.UserId == query.UserId) ||
+                    (n.IsPublic && n.OrganizationId != null && userOrgIds.Contains(n.OrganizationId!.Value)));
 
             var total = await q.CountAsync(innerCt);
             var items = await q
@@ -62,9 +71,19 @@ public sealed class GetNamespaceBySlugHandler : IRequestHandler<GetNamespaceBySl
             .FirstOrDefaultAsync(n => n.Slug == query.Slug, ct);
 
         if (ns is null) return Result<NamespaceResponse>.Failure(Error.NotFound("Namespace.NotFound", "Namespace not found"));
-        if (!ns.IsPublic && !ns.HasAccess(query.RequesterId))
-            return Result<NamespaceResponse>.Failure(Error.Forbidden("Namespace.Forbidden", "Access denied"));
 
-        return Result<NamespaceResponse>.Success(ns.ToResponse());
+        // Explicit member or owner — always allowed
+        if (ns.OwnerId == query.RequesterId || ns.Members.Any(m => m.UserId == query.RequesterId))
+            return Result<NamespaceResponse>.Success(ns.ToResponse());
+
+        // Public namespace — only allowed if requester belongs to the same org
+        if (ns.IsPublic && ns.OrganizationId.HasValue)
+        {
+            var inOrg = await _db.OrganizationMembers
+                .AnyAsync(m => m.OrganizationId == ns.OrganizationId.Value && m.UserId == query.RequesterId, ct);
+            if (inOrg) return Result<NamespaceResponse>.Success(ns.ToResponse());
+        }
+
+        return Result<NamespaceResponse>.Failure(Error.Forbidden("Namespace.Forbidden", "Access denied"));
     }
 }
