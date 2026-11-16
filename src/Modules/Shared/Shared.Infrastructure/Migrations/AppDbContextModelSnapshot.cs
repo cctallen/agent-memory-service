@@ -594,6 +594,29 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AgentMemoryService.Memories.Core.Entities.Memory", b =>
+                {
+                    b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
+                        .WithMany()
+                        .HasForeignKey("NamespaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Memories.Core.Entities.MemoryAccessLog", b =>
+                {
+                    b.HasOne("AgentMemoryService.Memories.Core.Entities.Memory", null)
+                        .WithMany()
+                        .HasForeignKey("MemoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
+                        .WithMany()
+                        .HasForeignKey("NamespaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AgentMemoryService.Namespaces.Core.Entities.NamespaceMember", b =>
                 {
                     b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
@@ -608,6 +631,15 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.HasOne("AgentMemoryService.Organizations.Core.Entities.Organization", null)
                         .WithMany("Members")
                         .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentMemoryService.Secrets.Core.Entities.Secret", b =>
+                {
+                    b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
+                        .WithMany()
+                        .HasForeignKey("NamespaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
