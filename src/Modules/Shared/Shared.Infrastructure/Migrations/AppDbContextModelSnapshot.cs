@@ -79,6 +79,8 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
 
                     b.HasKey("AgentId", "NamespaceId");
 
+                    b.HasIndex("NamespaceId");
+
                     b.ToTable("agent_namespaces", (string)null);
                 });
 
@@ -590,6 +592,12 @@ namespace AgentMemoryService.Shared.Infrastructure.Migrations
                     b.HasOne("AgentMemoryService.Agents.Core.Entities.Agent", null)
                         .WithMany("Namespaces")
                         .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AgentMemoryService.Namespaces.Core.Entities.MemoryNamespace", null)
+                        .WithMany()
+                        .HasForeignKey("NamespaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
